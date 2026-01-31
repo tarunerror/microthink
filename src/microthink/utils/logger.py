@@ -88,7 +88,7 @@ def log_success(message: str) -> None:
     Args:
         message: The success message to display.
     """
-    console.print(f"[bold green]✓[/bold green] {message}")
+    console.print(f"[bold green][OK][/bold green] {message}")
 
 
 def log_error(message: str) -> None:
@@ -98,7 +98,7 @@ def log_error(message: str) -> None:
     Args:
         message: The error message to display.
     """
-    console.print(f"[bold red]✗[/bold red] {message}")
+    console.print(f"[bold red][ERROR][/bold red] {message}")
 
 
 def log_info(message: str) -> None:
@@ -108,4 +108,4 @@ def log_info(message: str) -> None:
     Args:
         message: The info message to display.
     """
-    console.print(f"[bold blue]ℹ[/bold blue] {message}")
+    console.print(f"[bold blue][INFO][/bold blue] {message}")
