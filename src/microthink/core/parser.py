@@ -11,7 +11,7 @@ Layer 4 (generate loop): Handles actual syntax errors via retry
 """
 
 import re
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 
 def extract_tag_content(text: str, tag: str) -> Optional[str]:
@@ -39,7 +39,7 @@ def extract_tag_content(text: str, tag: str) -> Optional[str]:
         'No closing tag'
     """
     # Pattern handles optional attributes and missing closing tag
-    pattern = rf'<{tag}\b[^>]*>(.*?)(?:</{tag}>|$)'
+    pattern = rf"<{tag}\b[^>]*>(.*?)(?:</{tag}>|$)"
     match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
 
     if match:
@@ -80,10 +80,10 @@ def extract_answer_safely(text: str) -> str:
     if thought:
         # Remove the thinking block entirely
         text_no_thought = re.sub(
-            r'<thinking\b[^>]*>.*?(?:</thinking>|$)',
-            '',
+            r"<thinking\b[^>]*>.*?(?:</thinking>|$)",
+            "",
             text,
-            flags=re.DOTALL | re.IGNORECASE
+            flags=re.DOTALL | re.IGNORECASE,
         )
         cleaned = text_no_thought.strip()
         if cleaned:
@@ -117,18 +117,18 @@ def clean_json_text(text: str) -> str:
         '{"items": [1, 2, 3]}'
     """
     # Step 1: Remove markdown code blocks
-    text = re.sub(r'```(?:json)?', '', text)
-    text = re.sub(r'```', '', text)
+    text = re.sub(r"```(?:json)?", "", text)
+    text = re.sub(r"```", "", text)
     text = text.strip()
 
     # Step 2: Find JSON boundaries using brace/bracket matching
     # Find first opening brace or bracket
-    match_start = re.search(r'[\{\[]', text)
+    match_start = re.search(r"[\{\[]", text)
     if not match_start:
         return text  # No JSON structure found, let json.loads handle it
 
     start_char = text[match_start.start()]
-    end_char = '}' if start_char == '{' else ']'
+    end_char = "}" if start_char == "{" else "]"
 
     # Find the matching closing brace/bracket by counting nesting
     start_index = match_start.start()
@@ -144,7 +144,7 @@ def clean_json_text(text: str) -> str:
             escape_next = False
             continue
 
-        if char == '\\':
+        if char == "\\" and in_string:
             escape_next = True
             continue
 
@@ -185,6 +185,6 @@ def parse_response(text: str) -> Dict[str, Optional[str]]:
         '42'
     """
     return {
-        'thinking': extract_tag_content(text, 'thinking'),
-        'answer': extract_answer_safely(text),
+        "thinking": extract_tag_content(text, "thinking"),
+        "answer": extract_answer_safely(text),
     }
