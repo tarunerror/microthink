@@ -95,6 +95,7 @@ class MicroThinkClient:
         self,
         model: str = DEFAULT_MODEL,
         host: Optional[str] = None,
+        timeout: float = 120.0,
     ) -> None:
         """
         Initialize the MicroThink client.
@@ -102,6 +103,7 @@ class MicroThinkClient:
         Args:
             model: The Ollama model to use (default: "llama3.2:3b").
             host: Optional Ollama host URL (default: uses Ollama default).
+            timeout: Request timeout in seconds (default: 120.0).
 
         Raises:
             ValueError: If the model name is empty.
@@ -111,12 +113,13 @@ class MicroThinkClient:
 
         self.model = model
         self.host = host
+        self.timeout = timeout
 
         # Initialize Ollama client
         if host:
-            self._client = ollama.Client(host=host)
+            self._client = ollama.Client(host=host, timeout=timeout)
         else:
-            self._client = ollama.Client()
+            self._client = ollama.Client(timeout=timeout)
 
     @property
     def available_behaviors(self) -> List[str]:
