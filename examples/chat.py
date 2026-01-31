@@ -264,6 +264,10 @@ def main():
             break
         except Exception as e:
             print(f"\nError: {e}")
+            if debug:
+                import traceback
+
+                traceback.print_exc()
 
 
 if __name__ == "__main__":

@@ -171,6 +171,9 @@ def main() -> None:
         except Exception as e:
             print(f"Demo '{name}' failed: {e}")
             print("(Make sure Ollama is running with the specified model)")
+            import traceback
+
+            traceback.print_exc()
             print()
 
         if i < len(demos):
