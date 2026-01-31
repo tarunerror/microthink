@@ -45,8 +45,13 @@ def search_web(query: str, max_results: int = 3) -> List[Dict[str, str]]:
                 }
                 for r in results
             ]
+    except KeyboardInterrupt:
+        raise  # Don't swallow Ctrl+C
     except Exception as e:
-        # Return empty list on error, let the model answer without web context
+        # Log the error for debugging while gracefully degrading
+        import logging
+
+        logging.warning(f"Web search failed: {e}")
         return []
 
 
