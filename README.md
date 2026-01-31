@@ -1,26 +1,26 @@
 # MicroThink
 
-A smart wrapper around Ollama that makes small, local LLMs perform at a higher level through automatic Chain-of-Thought injection, JSON guardrails with self-correction, and persona optimization.
+A smart wrapper around Ollama that makes small, local LLMs perform at a higher level through automatic Chain-of-Thought injection, JSON guardrails with self-correction, web search integration, and persona optimization.
 
 ## Features
 
 - **Silent Chain-of-Thought**: Automatically forces the model to reason step-by-step using `<thinking>` tags, then strips them so users only see the final answer
 - **JSON Guardrails**: When requesting JSON, validates output and auto-retries with error feedback (up to 3 times) if parsing fails
+- **Web Search**: Search the web and inject current information into prompts using two-step fact extraction
 - **Persona Injection**: Optimized system prompts for different tasks (coder, analyst, reasoner)
+- **Auto-Detection**: Automatically detects when to use web search or specific personas based on query content
 - **Debug Mode**: Visualize the model's reasoning process with Rich console output
 
 ## Installation
 
 ```bash
-pip install microthink
+pip install -e .
 ```
 
-Or install from source:
+Or install dependencies directly:
 
 ```bash
-git clone https://github.com/microthink/microthink
-cd microthink
-pip install -e .
+pip install ollama rich duckduckgo-search
 ```
 
 ## Requirements
@@ -51,7 +51,31 @@ data = client.generate(
     expect_json=True
 )
 print(data)  # ['def', 'class', 'return']
+
+# Web search for current information
+answer = client.generate(
+    "What is the weather in Delhi today?",
+    web_search=True,
+    debug=True
+)
+print(answer)  # "The current weather in Delhi is clear, 12°C"
 ```
+
+## Interactive Chat
+
+Run the interactive chat with auto-detection:
+
+```bash
+python examples/chat.py
+```
+
+Commands:
+- `/web <query>` - Force web search
+- `/coder`, `/analyst`, `/reasoner` - Switch personas
+- `/brief` - Toggle brief mode (answers only)
+- `/debug` - Toggle debug mode
+- `/help` - Show all commands
+- `/quit` - Exit
 
 ## API Reference
 
@@ -71,7 +95,9 @@ result = client.generate(
     prompt="Your prompt here",
     behavior="general",    # 'general', 'coder', 'analyst', 'reasoner'
     expect_json=False,     # Set True for JSON output with validation
-    debug=False            # Set True to see thinking process
+    debug=False,           # Set True to see thinking process
+    brief=False,           # Set True for answer-only output
+    web_search=False       # Set True to search web for current info
 )
 ```
 
@@ -128,7 +154,20 @@ When `expect_json=True`:
 5. Each retry uses lower temperature (0.2) for stability
 ```
 
-### 3. 4-Layer Parser Resilience
+### 3. Web Search with Two-Step Extraction
+
+When `web_search=True`:
+
+```
+1. Search DuckDuckGo for query
+2. Extract key facts (temperatures, prices, dates, key sentences)
+3. Inject facts as "current information" into prompt
+4. Model answers using the provided facts
+```
+
+This two-step approach works better with small models than asking them to "use this context".
+
+### 4. 4-Layer Parser Resilience
 
 | Layer | Handles |
 |-------|---------|
@@ -174,12 +213,16 @@ except MicroThinkError as e:
 
 ## Examples
 
-See the `examples/` directory for complete demos:
+See the `examples/` directory:
+
+- `demo.py` - Demonstrates all features
+- `chat.py` - Interactive chat with auto-detection
 
 ```bash
 python examples/demo.py
+python examples/chat.py
 ```
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
