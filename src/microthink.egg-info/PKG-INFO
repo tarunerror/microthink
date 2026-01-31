@@ -1,0 +1,213 @@
+Metadata-Version: 2.4
+Name: microthink
+Version: 0.1.0
+Summary: A smart wrapper around Ollama that makes small LLMs perform better through automatic CoT injection, JSON guardrails, and self-correction.
+Author: microthink contributors
+License: MIT
+Project-URL: Homepage, https://github.com/microthink/microthink
+Project-URL: Repository, https://github.com/microthink/microthink
+Keywords: llm,ollama,chain-of-thought,reasoning,ai
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: ollama>=0.1.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: ddgs>=6.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+
+# MicroThink
+
+A smart wrapper around Ollama that makes small, local LLMs perform at a higher level through automatic Chain-of-Thought injection, JSON guardrails with self-correction, and persona optimization.
+
+## Features
+
+- **Silent Chain-of-Thought**: Automatically forces the model to reason step-by-step using `<thinking>` tags, then strips them so users only see the final answer
+- **JSON Guardrails**: When requesting JSON, validates output and auto-retries with error feedback (up to 3 times) if parsing fails
+- **Persona Injection**: Optimized system prompts for different tasks (coder, analyst, reasoner)
+- **Debug Mode**: Visualize the model's reasoning process with Rich console output
+
+## Installation
+
+```bash
+pip install microthink
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/microthink/microthink
+cd microthink
+pip install -e .
+```
+
+## Requirements
+
+- Python 3.9+
+- Ollama running locally with a model (e.g., `llama3.2:3b`)
+
+## Quick Start
+
+```python
+from microthink import MicroThinkClient
+
+# Initialize with your preferred model
+client = MicroThinkClient(model="llama3.2:3b")
+
+# Simple reasoning task
+answer = client.generate(
+    "How many r's are in 'strawberry'?",
+    behavior="reasoner",
+    debug=True  # Show thinking process
+)
+print(answer)  # "There are 3 r's in strawberry"
+
+# JSON output with automatic validation
+data = client.generate(
+    "Return a JSON list of 3 Python keywords",
+    behavior="coder",
+    expect_json=True
+)
+print(data)  # ['def', 'class', 'return']
+```
+
+## API Reference
+
+### MicroThinkClient
+
+```python
+client = MicroThinkClient(
+    model="llama3.2:3b",  # Ollama model name
+    host=None              # Optional: Ollama host URL
+)
+```
+
+### generate()
+
+```python
+result = client.generate(
+    prompt="Your prompt here",
+    behavior="general",    # 'general', 'coder', 'analyst', 'reasoner'
+    expect_json=False,     # Set True for JSON output with validation
+    debug=False            # Set True to see thinking process
+)
+```
+
+**Returns:**
+- `str` if `expect_json=False`
+- `dict` or `list` if `expect_json=True`
+
+**Raises:**
+- `MicroThinkError` if JSON parsing fails after 3 retries
+
+### generate_with_schema()
+
+```python
+schema = {"name": "string", "age": "number"}
+data = client.generate_with_schema(
+    prompt="Create a person named Alice who is 30",
+    schema=schema,
+    behavior="general",
+    debug=False
+)
+# Returns: {'name': 'Alice', 'age': 30}
+```
+
+## Behaviors (Personas)
+
+| Behavior | Description |
+|----------|-------------|
+| `general` | Balanced, helpful assistant |
+| `coder` | Expert programmer, prioritizes clean code |
+| `analyst` | Data analyst, precise with numbers |
+| `reasoner` | Logical reasoning, systematic problem-solving |
+
+## How It Works
+
+### 1. Silent Chain-of-Thought
+
+Every prompt is enhanced with instructions to think step-by-step:
+
+```
+User prompt → [System: Think in <thinking> tags, answer in <answer> tags] → Model
+```
+
+The thinking is extracted for debugging but stripped from the final output.
+
+### 2. JSON Self-Correction (Reflexion Loop)
+
+When `expect_json=True`:
+
+```
+1. Model generates response
+2. Parse <answer> content as JSON
+3. If valid → return parsed data
+4. If invalid → append error to conversation, retry (max 3x)
+5. Each retry uses lower temperature (0.2) for stability
+```
+
+### 3. 4-Layer Parser Resilience
+
+| Layer | Handles |
+|-------|---------|
+| L1 | Broken/missing closing tags |
+| L2 | Missing `<answer>` tags entirely |
+| L3 | Conversational text around JSON |
+| L4 | Actual syntax errors (retry loop) |
+
+## Debug Mode
+
+Enable `debug=True` to see the model's reasoning:
+
+```python
+client.generate("Complex question", debug=True)
+```
+
+Output:
+```
+╭─────────────── Thought Process ───────────────╮
+│ Step 1: First, I need to...                   │
+│ Step 2: Then I'll calculate...                │
+│ Step 3: Finally...                            │
+╰───────────────────────────────────────────────╯
+╭─────────────── Final Answer ──────────────────╮
+│ The answer is 42.                             │
+╰───────────────────────────────────────────────╯
+```
+
+## Error Handling
+
+```python
+from microthink import MicroThinkClient, MicroThinkError
+
+client = MicroThinkClient()
+
+try:
+    data = client.generate("...", expect_json=True)
+except MicroThinkError as e:
+    print(f"Failed: {e.message}")
+    print(f"Attempts: {e.attempts}")
+    print(f"Last output: {e.last_output}")
+```
+
+## Examples
+
+See the `examples/` directory for complete demos:
+
+```bash
+python examples/demo.py
+```
+
+## License
+
+MIT
