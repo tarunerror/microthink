@@ -317,13 +317,6 @@ class MicroThinkClient:
                     log_thinking(parsed["thinking"])
                     log_answer(answer_content, is_json=True)
 
-        # This should never be reached due to the raise in the loop
-        raise MicroThinkError(
-            "Unexpected error in JSON parsing loop",
-            last_output=answer_content,
-            attempts=retries,
-        )
-
     def generate_with_schema(
         self,
         prompt: str,
