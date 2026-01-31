@@ -101,7 +101,7 @@ def build_system_prompt(
         True
     """
     # Start with the persona identity
-    system_text = SYSTEM_PERSONAS.get(behavior, SYSTEM_PERSONAS["general"])
+    system_text = SYSTEM_PERSONAS[behavior]
 
     # Add CoT instruction (brief or detailed)
     if brief:
