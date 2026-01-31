@@ -11,7 +11,13 @@ from typing import Dict, List, Optional
 try:
     from ddgs import DDGS
 except ImportError:
-    from duckduckgo_search import DDGS
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        raise ImportError(
+            "Web search requires either 'ddgs' or 'duckduckgo-search' package. "
+            "Install with: pip install ddgs"
+        )
 
 
 def search_web(query: str, max_results: int = 3) -> List[Dict[str, str]]:
