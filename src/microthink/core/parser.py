@@ -11,7 +11,7 @@ Layer 4 (generate loop): Handles actual syntax errors via retry
 """
 
 import re
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 def extract_tag_content(text: str, tag: str) -> Optional[str]:
