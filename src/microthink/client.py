@@ -326,6 +326,8 @@ class MicroThinkClient:
         schema: Dict[str, Any],
         behavior: str = "general",
         debug: bool = False,
+        brief: bool = False,
+        web_search: bool = False,
     ) -> Dict[str, Any]:
         """
         Generate JSON output that conforms to a specified schema.
@@ -338,6 +340,8 @@ class MicroThinkClient:
             schema: A JSON schema or example structure to follow.
             behavior: The persona to use.
             debug: If True, log the reasoning process.
+            brief: If True, output just the result without explanation.
+            web_search: If True, search the web for current information.
 
         Returns:
             The parsed JSON response as a dictionary.
@@ -365,6 +369,8 @@ class MicroThinkClient:
             behavior=behavior,
             expect_json=True,
             debug=debug,
+            brief=brief,
+            web_search=web_search,
         )
 
         # Ensure we return a dict (not a list)
