@@ -130,22 +130,36 @@ def extract_facts_from_results(results: List[Dict[str, str]], query: str) -> str
         title = r.get("title", "")
 
         # Extract temperature patterns (e.g., "18°C", "65°F", "high of 68")
-        temp_patterns = re.findall(
-            r"(\d+(?:\.\d+)?)\s*°\s*[CFcf]?|"
+        # Pattern 1: Explicit unit (18°C, 65°F)
+        temp_with_unit = re.findall(
+            r"(\d+(?:\.\d+)?)\s*°\s*([CFcf])",
+            snippet,
+        )
+        for temp, unit in temp_with_unit:
+            try:
+                t = float(temp)
+                unit_upper = unit.upper()
+                # Validate based on unit
+                if unit_upper == "C" and -50 <= t <= 60:
+                    facts.append(f"Temperature: {int(t)}°C")
+                elif unit_upper == "F" and -58 <= t <= 140:
+                    facts.append(f"Temperature: {int(t)}°F")
+            except ValueError:
+                pass
+
+        # Pattern 2: No explicit unit (high of 68) - assume Fahrenheit for weather
+        temp_no_unit = re.findall(
             r"(?:high|low|temperature|temp)\s*(?:of|:)?\s*(\d+)",
             snippet,
             re.IGNORECASE,
         )
-        for match in temp_patterns:
-            temp = match[0] or match[1]
-            if temp:
-                # Filter unrealistic temperatures (above 60°C / 140°F is unlikely weather)
-                try:
-                    t = int(float(temp))
-                    if -50 <= t <= 140:
-                        facts.append(f"Temperature: {t}°")
-                except ValueError:
-                    pass
+        for temp in temp_no_unit:
+            try:
+                t = int(temp)
+                if -58 <= t <= 140:  # Fahrenheit range
+                    facts.append(f"Temperature: {t}°F")
+            except ValueError:
+                pass
 
         # Extract percentages
         pct_patterns = re.findall(r"(\d+(?:\.\d+)?)\s*%", snippet)
