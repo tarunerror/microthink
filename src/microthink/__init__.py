@@ -32,6 +32,7 @@ from microthink.core.prompts import (
 )
 from microthink.core.schema import SchemaValidationError
 from microthink.session import Session
+from microthink.tools.registry import ToolInfo, ToolRegistry, tool
 
 __version__ = "0.1.0"
 __all__ = [
@@ -43,8 +44,11 @@ __all__ = [
     "PersonaError",
     "SchemaValidationError",
     "Session",
+    "ToolInfo",
+    "ToolRegistry",
     "get_persona",
     "register_persona",
+    "tool",
     "unregister_persona",
     "__version__",
 ]
