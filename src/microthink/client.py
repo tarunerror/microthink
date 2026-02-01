@@ -500,13 +500,13 @@ class MicroThinkClient:
     def generate_with_schema(
         self,
         prompt: str,
-        schema: Dict[str, Any],
+        schema: Union[Dict[str, Any], List[Any]],
         behavior: str = "general",
         debug: bool = False,
         brief: bool = False,
         web_search: bool = False,
         validate: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> Union[Dict[str, Any], List[Any]]:
         """
         Generate JSON output that conforms to a specified schema.
 
@@ -515,7 +515,7 @@ class MicroThinkClient:
 
         Args:
             prompt: The user's input prompt.
-            schema: A JSON schema or example structure to follow.
+            schema: A JSON schema or example structure to follow (dict or list).
             behavior: The persona to use.
             debug: If True, log the reasoning process.
             brief: If True, output just the result without explanation.
@@ -523,7 +523,7 @@ class MicroThinkClient:
             validate: If True (default), validate output against schema.
 
         Returns:
-            The parsed JSON response as a dictionary.
+            The parsed JSON response as a dictionary or list.
 
         Raises:
             MicroThinkError: If JSON parsing fails after all retries.
@@ -553,14 +553,22 @@ class MicroThinkClient:
             web_search=web_search,
         )
 
-        # Ensure we return a dict (not a list)
-        if isinstance(result, dict):
-            if validate:
-                validate_schema(result, schema)
-            return result
+        # Validate against schema
+        if validate:
+            validate_schema(result, schema)
 
-        raise MicroThinkError(
-            f"Expected dict but got {type(result).__name__}",
-            last_output=str(result),
-            attempts=self.MAX_RETRIES,
-        )
+        # Type check based on schema type
+        if isinstance(schema, dict) and not isinstance(result, dict):
+            raise MicroThinkError(
+                f"Expected dict but got {type(result).__name__}",
+                last_output=str(result),
+                attempts=self.MAX_RETRIES,
+            )
+        if isinstance(schema, list) and not isinstance(result, list):
+            raise MicroThinkError(
+                f"Expected list but got {type(result).__name__}",
+                last_output=str(result),
+                attempts=self.MAX_RETRIES,
+            )
+
+        return result

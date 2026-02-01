@@ -1,6 +1,7 @@
 """Tests for schema validation."""
 
 import pytest
+
 from microthink.core.schema import (
     SchemaValidationError,
     infer_type,
@@ -108,6 +109,20 @@ class TestValidateSchema:
         schema = ["number"]
         data = ["a", "b"]
         with pytest.raises(SchemaValidationError, match=r"\[0\]"):
+            validate_schema(data, schema)
+
+    def test_bool_not_accepted_as_integer(self):
+        """Boolean is not accepted where integer is expected."""
+        schema = {"count": "integer"}
+        data = {"count": True}
+        with pytest.raises(SchemaValidationError, match="Expected integer"):
+            validate_schema(data, schema)
+
+    def test_bool_not_accepted_as_number(self):
+        """Boolean is not accepted where number is expected."""
+        schema = {"value": "number"}
+        data = {"value": False}
+        with pytest.raises(SchemaValidationError, match="Expected number"):
             validate_schema(data, schema)
 
 
