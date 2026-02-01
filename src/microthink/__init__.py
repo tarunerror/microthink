@@ -31,6 +31,7 @@ from microthink.core.prompts import (
     unregister_persona,
 )
 from microthink.core.schema import SchemaValidationError
+from microthink.session import Session
 
 __version__ = "0.1.0"
 __all__ = [
@@ -41,6 +42,7 @@ __all__ = [
     "MicroThinkError",
     "PersonaError",
     "SchemaValidationError",
+    "Session",
     "get_persona",
     "register_persona",
     "unregister_persona",
