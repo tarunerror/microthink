@@ -93,10 +93,38 @@ def register_persona(
     prompt: str,
     allow_override: bool = False,
 ) -> None:
-    """Register a custom persona."""
-    if not name or not name.strip():
+    """
+    Register a custom persona for use with MicroThinkClient.
+
+    Custom personas allow you to define specialized behaviors beyond the
+    built-in personas (general, coder, analyst, reasoner). Once registered,
+    a persona can be used via the `behavior` parameter in client methods.
+
+    Args:
+        name: Unique identifier for the persona. Must be non-empty.
+            If the name already exists (and is not built-in), the persona
+            will be overwritten.
+        prompt: The system prompt that defines the persona's behavior.
+            Must be non-empty. Leading/trailing whitespace is stripped.
+        allow_override: If True, allows overriding built-in personas.
+            Defaults to False for safety.
+
+    Raises:
+        PersonaError: If name or prompt is empty, or if attempting to
+            override a built-in persona without allow_override=True.
+
+    Example:
+        >>> register_persona(
+        ...     name="sql_expert",
+        ...     prompt="You are an expert SQL developer who writes efficient queries.",
+        ... )
+        >>> # Now use it with a client
+        >>> client = MicroThinkClient()
+        >>> response = client.generate("Optimize this query", behavior="sql_expert")
+    """
+    if name is None or not name.strip():
         raise PersonaError("Persona name cannot be empty")
-    if not prompt or not prompt.strip():
+    if prompt is None or not prompt.strip():
         raise PersonaError("Persona prompt cannot be empty")
     if name in _BUILTIN_PERSONAS and not allow_override:
         raise PersonaError(
@@ -107,7 +135,27 @@ def register_persona(
 
 
 def get_persona(name: str) -> str:
-    """Get a persona prompt by name."""
+    """
+    Retrieve a persona prompt by name.
+
+    This function returns the prompt text for a registered persona,
+    whether it's a built-in persona or a custom one.
+
+    Args:
+        name: The identifier of the persona to retrieve.
+
+    Returns:
+        The persona's prompt string.
+
+    Raises:
+        PersonaError: If the persona name is not found. The error message
+            includes a list of available personas.
+
+    Example:
+        >>> prompt = get_persona("coder")
+        >>> "Python programmer" in prompt
+        True
+    """
     if name not in SYSTEM_PERSONAS:
         available = ", ".join(sorted(SYSTEM_PERSONAS.keys()))
         raise PersonaError(f"Unknown persona '{name}'. Available: {available}")
@@ -115,7 +163,25 @@ def get_persona(name: str) -> str:
 
 
 def unregister_persona(name: str) -> None:
-    """Remove a custom persona."""
+    """
+    Remove a custom persona from the registry.
+
+    This function removes a previously registered custom persona. Built-in
+    personas (general, coder, analyst, reasoner) cannot be unregistered.
+
+    Args:
+        name: The identifier of the persona to remove.
+
+    Raises:
+        PersonaError: If attempting to unregister a built-in persona,
+            or if the persona name is not found.
+
+    Example:
+        >>> register_persona("temp", "Temporary persona")
+        >>> unregister_persona("temp")
+        >>> "temp" in SYSTEM_PERSONAS
+        False
+    """
     if name in _BUILTIN_PERSONAS:
         raise PersonaError(f"Cannot unregister built-in persona '{name}'")
     if name not in SYSTEM_PERSONAS:
