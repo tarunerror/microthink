@@ -21,6 +21,7 @@ Example:
     ... )
 """
 
+from microthink.async_client import AsyncMicroThinkClient
 from microthink.client import MicroThinkClient, MicroThinkError
 from microthink.core.prompts import (
     PersonaError,
@@ -32,6 +33,7 @@ from microthink.core.schema import SchemaValidationError
 
 __version__ = "0.1.0"
 __all__ = [
+    "AsyncMicroThinkClient",
     "MicroThinkClient",
     "MicroThinkError",
     "PersonaError",
