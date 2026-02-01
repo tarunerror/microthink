@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import ollama
 
+from microthink.core.cache import ResponseCache, make_cache_key
 from microthink.core.parser import (
     clean_json_text,
     extract_answer_safely,
@@ -102,6 +103,9 @@ class MicroThinkClient:
         model: str = DEFAULT_MODEL,
         host: Optional[str] = None,
         timeout: float = 120.0,
+        cache: bool = False,
+        cache_ttl: float = 3600.0,
+        cache_max_size: int = 1000,
     ) -> None:
         """
         Initialize the MicroThink client.
@@ -110,6 +114,9 @@ class MicroThinkClient:
             model: The Ollama model to use (default: "llama3.2:3b").
             host: Optional Ollama host URL (default: uses Ollama default).
             timeout: Request timeout in seconds (default: 120.0).
+            cache: Enable response caching (default: False).
+            cache_ttl: Cache time-to-live in seconds (default: 3600.0).
+            cache_max_size: Maximum cache entries (default: 1000).
 
         Raises:
             ValueError: If the model name is empty.
@@ -127,6 +134,11 @@ class MicroThinkClient:
         else:
             self._client = ollama.Client(timeout=timeout)
 
+        # Initialize cache
+        self._cache: Optional[ResponseCache] = None
+        if cache:
+            self._cache = ResponseCache(max_size=cache_max_size, ttl=cache_ttl)
+
     @property
     def available_behaviors(self) -> List[str]:
         """Return list of available behavior personas."""
@@ -140,6 +152,25 @@ class MicroThinkClient:
     ) -> None:
         """Register a custom persona for use with generate()."""
         _register_persona(name, prompt, allow_override)
+
+    def cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        if self._cache is None:
+            return {
+                "hits": 0,
+                "misses": 0,
+                "size": 0,
+                "hit_rate": 0.0,
+                "enabled": False,
+            }
+        stats = self._cache.stats()
+        stats["enabled"] = True
+        return stats
+
+    def clear_cache(self) -> None:
+        """Clear the response cache."""
+        if self._cache is not None:
+            self._cache.clear()
 
     def generate(
         self,
@@ -203,6 +234,22 @@ class MicroThinkClient:
                 f"Invalid behavior '{behavior}'. Available: {self.available_behaviors}"
             )
 
+        # Check cache first
+        cache_key = None
+        if self._cache is not None and not web_search:
+            cache_key = make_cache_key(
+                model=self.model,
+                behavior=behavior,
+                prompt=prompt,
+                expect_json=expect_json,
+                web_search=web_search,
+            )
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                if debug:
+                    log_info("Cache hit - returning cached response")
+                return cached
+
         # Build the system prompt with dynamic injection
         system_prompt = build_system_prompt(behavior, expect_json, brief)
 
@@ -262,6 +309,8 @@ class MicroThinkClient:
 
         # If not expecting JSON, return the answer directly
         if not expect_json:
+            if self._cache is not None and cache_key is not None:
+                self._cache.set(cache_key, answer_content)
             return answer_content
 
         # JSON Reflexion Loop
@@ -280,6 +329,8 @@ class MicroThinkClient:
                 if debug and retries > 0:
                     log_info(f"JSON parsed successfully after {retries} retries")
 
+                if self._cache is not None and cache_key is not None:
+                    self._cache.set(cache_key, result)
                 return result
 
             except json.JSONDecodeError as e:
