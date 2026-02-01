@@ -36,19 +36,52 @@ from microthink.utils.logger import (
 
 class MicroThinkError(Exception):
     """
-    Custom exception for MicroThink failures.
+    Custom exception for MicroThink failures with diagnostic context.
 
-    Raised when the library cannot produce a valid response after
-    all retry attempts have been exhausted.
+    Provides rich error messages with:
+    - The last model output before failure
+    - Number of retry attempts made
+    - JSON error details with position
+    - Actionable suggestions for fixing the issue
 
     Attributes:
         message: Human-readable error description.
         last_output: The last output from the model before failure.
         attempts: Number of attempts made before failure.
+        json_error: Specific JSON parsing error message.
+        suggestion: Actionable suggestion for fixing the issue.
     """
 
+    # Common error patterns and their suggestions
+    _SUGGESTIONS = {
+        "trailing comma": (
+            "Model added a trailing comma. Try:\n"
+            "  - Use behavior='coder' for cleaner JSON\n"
+            "  - Add 'no trailing commas' to your prompt"
+        ),
+        "expecting property name": (
+            "JSON structure is malformed. Try:\n"
+            "  - Simplify the requested schema\n"
+            "  - Use behavior='coder' for better formatting"
+        ),
+        "expecting value": (
+            "JSON value is missing or malformed. Try:\n"
+            "  - Ensure your prompt clearly specifies the expected structure\n"
+            "  - Use generate_with_schema() for complex objects"
+        ),
+        "unterminated string": (
+            "Model produced incomplete string. Try:\n"
+            "  - Increase timeout if model is slow\n"
+            "  - Use a smaller/faster model"
+        ),
+    }
+
     def __init__(
-        self, message: str, last_output: Optional[str] = None, attempts: int = 0
+        self,
+        message: str,
+        last_output: Optional[str] = None,
+        attempts: int = 0,
+        json_error: Optional[str] = None,
     ) -> None:
         """
         Initialize MicroThinkError.
@@ -57,15 +90,93 @@ class MicroThinkError(Exception):
             message: The error message.
             last_output: The last raw output from the model.
             attempts: How many attempts were made.
+            json_error: Specific JSON parsing error.
         """
         super().__init__(message)
         self.message = message
         self.last_output = last_output
         self.attempts = attempts
+        self.json_error = json_error
+        self.suggestion = self._generate_suggestion()
+
+    def _generate_suggestion(self) -> str:
+        """Generate actionable suggestion based on error type."""
+        if not self.json_error:
+            return "Run with debug=True to see the model's thinking process."
+
+        error_lower = self.json_error.lower()
+        for pattern, suggestion in self._SUGGESTIONS.items():
+            if pattern in error_lower:
+                return suggestion
+
+        return (
+            "Run with debug=True to see the model's thinking process.\n"
+            "Consider using behavior='coder' for more reliable JSON output."
+        )
+
+    def _format_output_with_pointer(self) -> str:
+        """Format output with error position pointer if available."""
+        if not self.last_output:
+            return ""
+
+        # Truncate long output
+        max_len = 200
+        output = self.last_output
+        truncated = False
+        if len(output) > max_len:
+            output = output[:max_len]
+            truncated = True
+
+        # Try to extract position from json_error
+        pointer_line = ""
+        if self.json_error:
+            import re
+
+            # Match patterns like "column 18" or "position 17"
+            col_match = re.search(r"column (\d+)", self.json_error, re.IGNORECASE)
+            pos_match = re.search(r"position (\d+)", self.json_error, re.IGNORECASE)
+
+            pos = None
+            if col_match:
+                pos = int(col_match.group(1)) - 1  # 0-indexed
+            elif pos_match:
+                pos = int(pos_match.group(1))
+
+            if pos is not None and pos < len(output):
+                pointer_line = "\n    " + " " * pos + "^"
+
+        if truncated:
+            output += "..."
+
+        return output + pointer_line
 
     def __str__(self) -> str:
-        """Return a formatted error string."""
-        return f"MicroThinkError: {self.message} (after {self.attempts} attempts)"
+        """Return a formatted, actionable error string."""
+        parts = [f"MicroThinkError: {self.message}"]
+
+        if self.attempts > 0:
+            parts.append(f"  Attempts: {self.attempts}")
+
+        if self.last_output:
+            parts.append(
+                f"\n  Last model output:\n    {self._format_output_with_pointer()}"
+            )
+
+        if self.json_error:
+            parts.append(f"\n  JSON Error: {self.json_error}")
+
+        if self.suggestion:
+            parts.append(f"\n  Suggestion: {self.suggestion}")
+
+        return "\n".join(parts)
+
+    def __repr__(self) -> str:
+        """Return a detailed repr for debugging."""
+        return (
+            f"MicroThinkError(message={self.message!r}, "
+            f"attempts={self.attempts}, "
+            f"has_output={self.last_output is not None})"
+        )
 
 
 class MicroThinkClient:
@@ -342,10 +453,10 @@ class MicroThinkClient:
 
                 if retries >= self.MAX_RETRIES:
                     raise MicroThinkError(
-                        f"JSON parsing failed after {self.MAX_RETRIES} retries. "
-                        f"Last error: {last_error}",
+                        f"JSON parsing failed after {self.MAX_RETRIES} retries",
                         last_output=answer_content,
                         attempts=retries,
+                        json_error=last_error,
                     )
 
                 # Build correction prompt
