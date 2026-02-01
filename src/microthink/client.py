@@ -444,6 +444,11 @@ class MicroThinkClient:
         thinking = parsed["thinking"]
         answer_content = parsed["answer"]
 
+        # Invoke thinking and answer callbacks
+        if thinking:
+            self.callbacks.invoke_thinking(thinking)
+        self.callbacks.invoke_answer(answer_content)
+
         # Debug logging
         if debug:
             if thinking:
