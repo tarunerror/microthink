@@ -8,7 +8,7 @@ structured outputs, and handle self-correction for small language models.
 
 import json
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 import ollama
 
@@ -587,3 +587,70 @@ class MicroThinkClient:
             )
 
         return result
+
+    def stream(
+        self,
+        prompt: str,
+        behavior: str = "general",
+        brief: bool = False,
+    ) -> Iterator[str]:
+        """
+        Stream a response token by token.
+
+        Args:
+            prompt: The user's input prompt.
+            behavior: The persona to use.
+            brief: If True, output just the result.
+
+        Yields:
+            String chunks as they are generated.
+
+        Example:
+            >>> for chunk in client.stream("Write a story"):
+            ...     print(chunk, end="", flush=True)
+        """
+        if behavior not in SYSTEM_PERSONAS:
+            raise ValueError(
+                f"Invalid behavior '{behavior}'. Available: {self.available_behaviors}"
+            )
+
+        system_prompt = build_system_prompt(behavior, expect_json=False, brief=brief)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
+        response = self._client.chat(
+            model=self.model,
+            messages=messages,
+            stream=True,
+        )
+
+        for chunk in response:
+            if "message" in chunk and "content" in chunk["message"]:
+                yield chunk["message"]["content"]
+
+    def _stream_generate(
+        self,
+        prompt: str,
+        callback: Callable[[str], None],
+        behavior: str = "general",
+        brief: bool = False,
+    ) -> str:
+        """
+        Generate with streaming callback.
+
+        Args:
+            prompt: The user's input prompt.
+            callback: Function called with each chunk.
+            behavior: The persona to use.
+            brief: If True, output just the result.
+
+        Returns:
+            The complete response.
+        """
+        full_response = []
+        for chunk in self.stream(prompt, behavior, brief):
+            callback(chunk)
+            full_response.append(chunk)
+        return "".join(full_response)

@@ -6,7 +6,7 @@ Uses httpx for async HTTP communication with Ollama.
 """
 
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 import httpx
 
@@ -207,3 +207,61 @@ class AsyncMicroThinkClient:
                 last_output=str(result),
             )
         return result
+
+    async def stream(
+        self,
+        prompt: str,
+        behavior: str = "general",
+        brief: bool = False,
+    ) -> AsyncIterator[str]:
+        """
+        Stream a response token by token asynchronously.
+
+        Args:
+            prompt: The user's input prompt.
+            behavior: The persona to use.
+            brief: If True, output just the result.
+
+        Yields:
+            String chunks as they are generated.
+
+        Example:
+            >>> async for chunk in client.stream("Write a story"):
+            ...     print(chunk, end="", flush=True)
+        """
+        if self._http_client is None:
+            raise RuntimeError(
+                "Client not initialized. Use 'async with AsyncMicroThinkClient():'"
+            )
+
+        if behavior not in SYSTEM_PERSONAS:
+            raise ValueError(
+                f"Invalid behavior '{behavior}'. Available: {self.available_behaviors}"
+            )
+
+        system_prompt = build_system_prompt(behavior, expect_json=False, brief=brief)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+        }
+
+        async with self._http_client.stream(
+            "POST",
+            f"{self.host}/api/chat",
+            json=payload,
+        ) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line:
+                    try:
+                        data = json.loads(line)
+                        if "message" in data and "content" in data["message"]:
+                            yield data["message"]["content"]
+                    except json.JSONDecodeError:
+                        continue
