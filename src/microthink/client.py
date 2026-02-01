@@ -25,6 +25,7 @@ from microthink.core.prompts import (
 from microthink.core.prompts import (
     register_persona as _register_persona,
 )
+from microthink.core.schema import SchemaValidationError, validate_schema
 from microthink.tools.search import extract_facts_from_results, search_web
 from microthink.utils.logger import (
     log_answer,
@@ -504,6 +505,7 @@ class MicroThinkClient:
         debug: bool = False,
         brief: bool = False,
         web_search: bool = False,
+        validate: bool = True,
     ) -> Dict[str, Any]:
         """
         Generate JSON output that conforms to a specified schema.
@@ -518,12 +520,14 @@ class MicroThinkClient:
             debug: If True, log the reasoning process.
             brief: If True, output just the result without explanation.
             web_search: If True, search the web for current information.
+            validate: If True (default), validate output against schema.
 
         Returns:
             The parsed JSON response as a dictionary.
 
         Raises:
             MicroThinkError: If JSON parsing fails after all retries.
+            SchemaValidationError: If validate=True and output doesn't match schema.
 
         Example:
             >>> client = MicroThinkClient()
@@ -551,6 +555,8 @@ class MicroThinkClient:
 
         # Ensure we return a dict (not a list)
         if isinstance(result, dict):
+            if validate:
+                validate_schema(result, schema)
             return result
 
         raise MicroThinkError(

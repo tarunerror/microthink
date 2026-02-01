@@ -28,12 +28,14 @@ from microthink.core.prompts import (
     register_persona,
     unregister_persona,
 )
+from microthink.core.schema import SchemaValidationError
 
 __version__ = "0.1.0"
 __all__ = [
     "MicroThinkClient",
     "MicroThinkError",
     "PersonaError",
+    "SchemaValidationError",
     "get_persona",
     "register_persona",
     "unregister_persona",
