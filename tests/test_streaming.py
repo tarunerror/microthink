@@ -31,11 +31,12 @@ class TestSyncStreaming:
 
         client = MicroThinkClient()
         with patch.object(client, "_client") as mock_ollama:
-            # Mock streaming response
+            # Mock streaming response with proper answer tags
             mock_ollama.chat.return_value = iter(
                 [
+                    {"message": {"content": "<answer>"}},
                     {"message": {"content": "Hello"}},
-                    {"message": {"content": " world"}},
+                    {"message": {"content": " world</answer>"}},
                 ]
             )
 
@@ -85,12 +86,13 @@ class TestStreamCallback:
             mock_client = MagicMock()
             mock_ollama_class.return_value = mock_client
 
-            # Mock streaming chat response
+            # Mock streaming chat response with proper answer tags
             mock_client.chat.return_value = iter(
                 [
+                    {"message": {"content": "<answer>"}},
                     {"message": {"content": "Hello"}},
                     {"message": {"content": " world"}},
-                    {"message": {"content": "!"}},
+                    {"message": {"content": "!</answer>"}},
                 ]
             )
 

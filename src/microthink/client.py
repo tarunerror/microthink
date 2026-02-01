@@ -657,13 +657,15 @@ class MicroThinkClient:
         """
         Stream a response token by token.
 
+        Only streams the answer content, filtering out thinking tags.
+
         Args:
             prompt: The user's input prompt.
             behavior: The persona to use.
             brief: If True, output just the result.
 
         Yields:
-            String chunks as they are generated.
+            String chunks as they are generated (answer content only).
 
         Example:
             >>> for chunk in client.stream("Write a story"):
@@ -686,9 +688,61 @@ class MicroThinkClient:
             stream=True,
         )
 
+        # Buffer to accumulate content and detect answer tag
+        buffer = ""
+        in_answer = False
+        answer_start_tag = "<answer>"
+        answer_end_tag = "</answer>"
+
         for chunk in response:
             if "message" in chunk and "content" in chunk["message"]:
-                yield chunk["message"]["content"]
+                content = chunk["message"]["content"]
+                buffer += content
+
+                # If we're already in the answer section, yield content
+                if in_answer:
+                    # Check if this chunk contains the end tag
+                    if answer_end_tag in buffer:
+                        # Yield everything before the end tag
+                        end_idx = buffer.find(answer_end_tag)
+                        if end_idx > 0:
+                            yield buffer[:end_idx]
+                        buffer = buffer[end_idx + len(answer_end_tag) :]
+                        in_answer = False
+                    else:
+                        # Yield the content, but keep potential partial end tag
+                        safe_len = len(buffer) - len(answer_end_tag)
+                        if safe_len > 0:
+                            yield buffer[:safe_len]
+                            buffer = buffer[safe_len:]
+                else:
+                    # Look for the start of answer tag
+                    if answer_start_tag in buffer:
+                        start_idx = buffer.find(answer_start_tag)
+                        buffer = buffer[start_idx + len(answer_start_tag) :]
+                        in_answer = True
+
+                        # Check if there's also an end tag in the buffer
+                        if answer_end_tag in buffer:
+                            end_idx = buffer.find(answer_end_tag)
+                            if end_idx > 0:
+                                yield buffer[:end_idx]
+                            buffer = buffer[end_idx + len(answer_end_tag) :]
+                            in_answer = False
+                        elif buffer:
+                            # Yield what we have so far (keeping potential partial end tag)
+                            safe_len = len(buffer) - len(answer_end_tag)
+                            if safe_len > 0:
+                                yield buffer[:safe_len]
+                                buffer = buffer[safe_len:]
+
+        # Yield any remaining content in buffer (if still in answer)
+        if in_answer and buffer:
+            # Remove trailing end tag if present
+            if buffer.endswith(answer_end_tag):
+                buffer = buffer[: -len(answer_end_tag)]
+            if buffer:
+                yield buffer
 
     def _stream_generate(
         self,
