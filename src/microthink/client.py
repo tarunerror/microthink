@@ -25,6 +25,7 @@ from microthink.core.prompts import (
 from microthink.core.prompts import (
     register_persona as _register_persona,
 )
+from microthink.core.retry import analyze_json_error, get_retry_strategy
 from microthink.core.schema import SchemaValidationError, validate_schema
 from microthink.tools.search import extract_facts_from_results, search_web
 from microthink.utils.logger import (
@@ -474,31 +475,22 @@ class MicroThinkClient:
                         json_error=last_error,
                     )
 
-                # Build correction prompt
-                # Truncate bad output to avoid context window bloat
-                truncated_output = answer_content[: self.BAD_OUTPUT_TRUNCATE_LENGTH]
-                if len(answer_content) > self.BAD_OUTPUT_TRUNCATE_LENGTH:
-                    truncated_output += "..."
-
-                correction_msg = (
-                    f"Your previous response was invalid JSON.\n"
-                    f"Error: {last_error}\n"
-                    f"Your output: {truncated_output}\n\n"
-                    f"INSTRUCTIONS:\n"
-                    f"1. Fix the syntax error.\n"
-                    f"2. Output ONLY valid JSON inside <answer> tags.\n"
-                    f"3. Do not add any explanatory text inside <answer>.\n"
-                    f"4. Do not use markdown code blocks."
-                )
+                # Analyze error and get appropriate strategy
+                error_info = analyze_json_error(last_error)
+                strategy = get_retry_strategy(error_info["error_type"], retries)
 
                 # Append correction to history
-                messages.append({"role": "user", "content": correction_msg})
+                messages.append({"role": "user", "content": strategy.correction_prompt})
 
-                # Retry with lower temperature for stability
+                # Retry with strategy-specific temperature
+                options = {"temperature": strategy.temperature}
+                if strategy.max_tokens:
+                    options["num_predict"] = strategy.max_tokens
+
                 response = self._client.chat(
                     model=self.model,
                     messages=messages,
-                    options={"temperature": self.RETRY_TEMPERATURE},
+                    options=options,
                 )
 
                 raw_content = response["message"]["content"]
