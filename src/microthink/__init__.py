@@ -22,6 +22,14 @@ Example:
 """
 
 from microthink.client import MicroThinkClient, MicroThinkError
+from microthink.core.prompts import PersonaError, register_persona, unregister_persona
 
 __version__ = "0.1.0"
-__all__ = ["MicroThinkClient", "MicroThinkError", "__version__"]
+__all__ = [
+    "MicroThinkClient",
+    "MicroThinkError",
+    "PersonaError",
+    "register_persona",
+    "unregister_persona",
+    "__version__",
+]

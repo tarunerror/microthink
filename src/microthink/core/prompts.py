@@ -78,6 +78,50 @@ SYSTEM_PERSONAS = {
     ),
 }
 
+# Track which personas are built-in (cannot be removed)
+_BUILTIN_PERSONAS = frozenset(SYSTEM_PERSONAS.keys())
+
+
+class PersonaError(Exception):
+    """Raised when persona operations fail."""
+
+    pass
+
+
+def register_persona(
+    name: str,
+    prompt: str,
+    allow_override: bool = False,
+) -> None:
+    """Register a custom persona."""
+    if not name or not name.strip():
+        raise PersonaError("Persona name cannot be empty")
+    if not prompt or not prompt.strip():
+        raise PersonaError("Persona prompt cannot be empty")
+    if name in _BUILTIN_PERSONAS and not allow_override:
+        raise PersonaError(
+            f"Cannot override built-in persona '{name}'. "
+            f"Use allow_override=True to override."
+        )
+    SYSTEM_PERSONAS[name] = prompt.strip()
+
+
+def get_persona(name: str) -> str:
+    """Get a persona prompt by name."""
+    if name not in SYSTEM_PERSONAS:
+        available = ", ".join(sorted(SYSTEM_PERSONAS.keys()))
+        raise PersonaError(f"Unknown persona '{name}'. Available: {available}")
+    return SYSTEM_PERSONAS[name]
+
+
+def unregister_persona(name: str) -> None:
+    """Remove a custom persona."""
+    if name in _BUILTIN_PERSONAS:
+        raise PersonaError(f"Cannot unregister built-in persona '{name}'")
+    if name not in SYSTEM_PERSONAS:
+        raise PersonaError(f"Unknown persona '{name}'")
+    del SYSTEM_PERSONAS[name]
+
 
 def build_system_prompt(
     behavior: str = "general", expect_json: bool = False, brief: bool = False

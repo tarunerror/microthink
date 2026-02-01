@@ -16,7 +16,13 @@ from microthink.core.parser import (
     extract_answer_safely,
     parse_response,
 )
-from microthink.core.prompts import SYSTEM_PERSONAS, build_system_prompt
+from microthink.core.prompts import (
+    SYSTEM_PERSONAS,
+    build_system_prompt,
+)
+from microthink.core.prompts import (
+    register_persona as _register_persona,
+)
 from microthink.tools.search import extract_facts_from_results, search_web
 from microthink.utils.logger import (
     log_answer,
@@ -125,6 +131,15 @@ class MicroThinkClient:
     def available_behaviors(self) -> List[str]:
         """Return list of available behavior personas."""
         return list(SYSTEM_PERSONAS.keys())
+
+    def register_persona(
+        self,
+        name: str,
+        prompt: str,
+        allow_override: bool = False,
+    ) -> None:
+        """Register a custom persona for use with generate()."""
+        _register_persona(name, prompt, allow_override)
 
     def generate(
         self,
