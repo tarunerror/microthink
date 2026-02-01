@@ -25,6 +25,7 @@ from microthink.async_client import AsyncMicroThinkClient
 from microthink.batch import BatchProcessor, BatchResult
 from microthink.callbacks import Callbacks
 from microthink.client import MicroThinkClient, MicroThinkError
+from microthink.config import Config, load_config
 from microthink.core.prompts import (
     PersonaError,
     get_persona,
@@ -42,6 +43,8 @@ __all__ = [
     "BatchProcessor",
     "BatchResult",
     "Callbacks",
+    "Config",
+    "load_config",
     "Metrics",
     "MicroThinkClient",
     "MicroThinkError",

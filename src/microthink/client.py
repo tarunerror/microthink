@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 import ollama
 
 from microthink.callbacks import Callbacks
+from microthink.config import Config
 from microthink.core.cache import ResponseCache, make_cache_key
 from microthink.core.parser import (
     clean_json_text,
@@ -217,14 +218,15 @@ class MicroThinkClient:
 
     def __init__(
         self,
-        model: str = DEFAULT_MODEL,
+        model: Optional[str] = None,
         host: Optional[str] = None,
         timeout: float = 120.0,
-        cache: bool = False,
-        cache_ttl: float = 3600.0,
-        cache_max_size: int = 1000,
-        logger: str = "rich",
+        cache: Optional[bool] = None,
+        cache_ttl: Optional[float] = None,
+        cache_max_size: Optional[int] = None,
+        logger: Optional[str] = None,
         callbacks: Optional[Callbacks] = None,
+        config: Optional[Config] = None,
     ) -> None:
         """
         Initialize the MicroThink client.
@@ -239,31 +241,47 @@ class MicroThinkClient:
             logger: Logging mode - 'rich' for Rich console output (default),
                    'standard' for Python standard logging.
             callbacks: Optional Callbacks instance for lifecycle hooks.
+            config: Optional Config instance for default settings.
 
         Raises:
             ValueError: If the model name is empty.
         """
-        if not model:
-            raise ValueError("Model name cannot be empty")
+        # Load config or use defaults
+        if config is None:
+            config = Config()
 
-        self.model = model
-        self.host = host
+        # Apply config with parameter overrides
+        self.model = model if model is not None else config.model
+        self.host = host if host is not None else config.host
         self.timeout = timeout
         self.callbacks = callbacks or Callbacks()
 
+        # Resolve cache settings from config with parameter overrides
+        effective_cache = cache if cache is not None else config.cache
+        effective_cache_ttl = cache_ttl if cache_ttl is not None else config.cache_ttl
+        effective_cache_max_size = (
+            cache_max_size if cache_max_size is not None else config.cache_max_size
+        )
+        effective_logger = logger if logger is not None else config.logger
+
+        if not self.model:
+            raise ValueError("Model name cannot be empty")
+
         # Initialize logging mode
-        self._use_rich_logging = logger != "standard"
+        self._use_rich_logging = effective_logger != "standard"
 
         # Initialize Ollama client
-        if host:
-            self._client = ollama.Client(host=host, timeout=timeout)
+        if self.host:
+            self._client = ollama.Client(host=self.host, timeout=timeout)
         else:
             self._client = ollama.Client(timeout=timeout)
 
         # Initialize cache
         self._cache: Optional[ResponseCache] = None
-        if cache:
-            self._cache = ResponseCache(max_size=cache_max_size, ttl=cache_ttl)
+        if effective_cache:
+            self._cache = ResponseCache(
+                max_size=effective_cache_max_size, ttl=effective_cache_ttl
+            )
 
         # Initialize metrics
         self.metrics = Metrics()
