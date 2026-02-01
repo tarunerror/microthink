@@ -69,3 +69,21 @@ class TestClientLoggingIntegration:
 
         client = MicroThinkClient(logger="rich")
         assert client._use_rich_logging is True
+
+    def test_client_standard_logging_logs_to_python_logger(self):
+        """Setting logger='standard' uses Python logging."""
+        import logging
+        from io import StringIO
+
+        from microthink import MicroThinkClient
+        from microthink.utils.logging_config import configure_logging
+
+        # Set up a handler to capture logs
+        stream = StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.setLevel(logging.DEBUG)
+        configure_logging(level="DEBUG", handler=handler)
+
+        client = MicroThinkClient(logger="standard")
+        # The client should use standard logging, not Rich
+        assert client._use_rich_logging is False

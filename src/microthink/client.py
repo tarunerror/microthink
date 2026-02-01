@@ -29,8 +29,10 @@ from microthink.core.schema import SchemaValidationError, validate_schema
 from microthink.tools.search import extract_facts_from_results, search_web
 from microthink.utils.logger import (
     log_answer,
+    log_debug_std,
     log_error,
     log_info,
+    log_info_std,
     log_retry,
     log_thinking,
 )
@@ -256,6 +258,13 @@ class MicroThinkClient:
         if cache:
             self._cache = ResponseCache(max_size=cache_max_size, ttl=cache_ttl)
 
+    def _log_info(self, message: str) -> None:
+        """Log info message using configured logger."""
+        if self._use_rich_logging:
+            log_info(message)
+        else:
+            log_info_std(message)
+
     @property
     def available_behaviors(self) -> List[str]:
         """Return list of available behavior personas."""
@@ -364,7 +373,7 @@ class MicroThinkClient:
             cached = self._cache.get(cache_key)
             if cached is not None:
                 if debug:
-                    log_info("Cache hit - returning cached response")
+                    self._log_info("Cache hit - returning cached response")
                 return cached
 
         # Build the system prompt with dynamic injection
@@ -374,22 +383,22 @@ class MicroThinkClient:
         enhanced_prompt = prompt
         if web_search:
             if debug:
-                log_info(f"Searching web for: {prompt[:50]}...")
+                self._log_info(f"Searching web for: {prompt[:50]}...")
 
             # Step 1: Get raw search results
             search_results = search_web(prompt, max_results=5)
 
             if search_results:
                 if debug:
-                    log_info(f"Found {len(search_results)} web results")
+                    self._log_info(f"Found {len(search_results)} web results")
 
                 # Step 2: Extract key facts from results (pre-processing)
                 extracted_facts = extract_facts_from_results(search_results, prompt)
 
                 if extracted_facts:
                     if debug:
-                        log_info("Extracted facts from web results")
-                        log_info(f"Facts:\n{extracted_facts}")
+                        self._log_info("Extracted facts from web results")
+                        self._log_info(f"Facts:\n{extracted_facts}")
 
                     # Two-step approach: Present facts as knowledge, not "search results"
                     # Small models respond better to direct facts than "use this context"
@@ -398,7 +407,7 @@ class MicroThinkClient:
                         f"Based on the information above, answer: {prompt}"
                     )
             elif debug:
-                log_info("No web results found, proceeding without")
+                self._log_info("No web results found, proceeding without")
 
         # Initialize message history (stateful for retries)
         messages: List[Dict[str, str]] = [
@@ -408,7 +417,7 @@ class MicroThinkClient:
 
         # Initial model call
         if debug:
-            log_info(f"Calling {self.model} with behavior='{behavior}'")
+            self._log_info(f"Calling {self.model} with behavior='{behavior}'")
 
         response = self._client.chat(model=self.model, messages=messages)
         raw_content = response["message"]["content"]
@@ -444,7 +453,7 @@ class MicroThinkClient:
                 result = json.loads(cleaned)
 
                 if debug and retries > 0:
-                    log_info(f"JSON parsed successfully after {retries} retries")
+                    self._log_info(f"JSON parsed successfully after {retries} retries")
 
                 if self._cache is not None and cache_key is not None:
                     self._cache.set(cache_key, result)
