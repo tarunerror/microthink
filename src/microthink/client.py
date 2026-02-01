@@ -217,6 +217,7 @@ class MicroThinkClient:
         cache: bool = False,
         cache_ttl: float = 3600.0,
         cache_max_size: int = 1000,
+        logger: str = "rich",
     ) -> None:
         """
         Initialize the MicroThink client.
@@ -228,6 +229,8 @@ class MicroThinkClient:
             cache: Enable response caching (default: False).
             cache_ttl: Cache time-to-live in seconds (default: 3600.0).
             cache_max_size: Maximum cache entries (default: 1000).
+            logger: Logging mode - 'rich' for Rich console output (default),
+                   'standard' for Python standard logging.
 
         Raises:
             ValueError: If the model name is empty.
@@ -238,6 +241,9 @@ class MicroThinkClient:
         self.model = model
         self.host = host
         self.timeout = timeout
+
+        # Initialize logging mode
+        self._use_rich_logging = logger != "standard"
 
         # Initialize Ollama client
         if host:

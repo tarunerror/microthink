@@ -11,8 +11,33 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from microthink.utils.logging_config import get_logger
+
 # Shared console instance
 console = Console()
+
+# Standard logger
+_logger = get_logger("output")
+
+
+def log_debug_std(message: str) -> None:
+    """Log a debug message using standard logging."""
+    _logger.debug(message)
+
+
+def log_info_std(message: str) -> None:
+    """Log an info message using standard logging."""
+    _logger.info(message)
+
+
+def log_warning_std(message: str) -> None:
+    """Log a warning message using standard logging."""
+    _logger.warning(message)
+
+
+def log_error_std(message: str) -> None:
+    """Log an error message using standard logging."""
+    _logger.error(message)
 
 
 def log_thinking(content: str) -> None:
