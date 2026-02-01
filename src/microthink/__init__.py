@@ -32,6 +32,7 @@ from microthink.core.prompts import (
     unregister_persona,
 )
 from microthink.core.schema import SchemaValidationError
+from microthink.metrics import Metrics
 from microthink.session import Session
 from microthink.tools.registry import ToolInfo, ToolRegistry, tool
 
@@ -41,6 +42,7 @@ __all__ = [
     "BatchProcessor",
     "BatchResult",
     "Callbacks",
+    "Metrics",
     "MicroThinkClient",
     "MicroThinkError",
     "PersonaError",

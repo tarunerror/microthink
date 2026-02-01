@@ -29,6 +29,7 @@ from microthink.core.prompts import (
 )
 from microthink.core.retry import analyze_json_error, get_retry_strategy
 from microthink.core.schema import SchemaValidationError, validate_schema
+from microthink.metrics import Metrics
 from microthink.tools.search import extract_facts_from_results, search_web
 from microthink.utils.logger import (
     log_answer,
@@ -264,6 +265,9 @@ class MicroThinkClient:
         if cache:
             self._cache = ResponseCache(max_size=cache_max_size, ttl=cache_ttl)
 
+        # Initialize metrics
+        self.metrics = Metrics()
+
     def _log_info(self, message: str) -> None:
         """Log info message using configured logger."""
         if self._use_rich_logging:
@@ -386,12 +390,19 @@ class MicroThinkClient:
             if cached is not None:
                 # Invoke cache hit callback
                 self.callbacks.invoke_cache_hit(cache_key)
+                # Record cache hit in metrics
+                self.metrics.record_cache_hit()
                 if debug:
                     self._log_info("Cache hit - returning cached response")
                 # Calculate duration and invoke request end callback
                 duration_ms = (time.time() - start_time) * 1000
                 self.callbacks.invoke_request_end(str(cached), duration_ms)
+                # Record successful request in metrics
+                self.metrics.record_request(success=True, latency_ms=duration_ms)
                 return cached
+            else:
+                # Record cache miss in metrics (cache enabled but not found)
+                self.metrics.record_cache_miss()
 
         # Build the system prompt with dynamic injection
         system_prompt = build_system_prompt(behavior, expect_json, brief)
@@ -462,6 +473,8 @@ class MicroThinkClient:
             # Calculate duration and invoke request end callback
             duration_ms = (time.time() - start_time) * 1000
             self.callbacks.invoke_request_end(answer_content, duration_ms)
+            # Record successful request in metrics
+            self.metrics.record_request(success=True, latency_ms=duration_ms)
             return answer_content
 
         # JSON Reflexion Loop
@@ -485,6 +498,8 @@ class MicroThinkClient:
                 # Calculate duration and invoke request end callback
                 duration_ms = (time.time() - start_time) * 1000
                 self.callbacks.invoke_request_end(str(result), duration_ms)
+                # Record successful request in metrics
+                self.metrics.record_request(success=True, latency_ms=duration_ms)
                 return result
 
             except json.JSONDecodeError as e:
@@ -493,11 +508,16 @@ class MicroThinkClient:
 
                 # Invoke retry callback
                 self.callbacks.invoke_retry(retries, last_error)
+                # Record retry in metrics
+                self.metrics.record_retry()
 
                 if debug:
                     log_retry(retries, self.MAX_RETRIES, last_error)
 
                 if retries >= self.MAX_RETRIES:
+                    # Record failed request in metrics
+                    duration_ms = (time.time() - start_time) * 1000
+                    self.metrics.record_request(success=False, latency_ms=duration_ms)
                     raise MicroThinkError(
                         f"JSON parsing failed after {self.MAX_RETRIES} retries",
                         last_output=answer_content,
