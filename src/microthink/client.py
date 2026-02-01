@@ -7,6 +7,7 @@ structured outputs, and handle self-correction for small language models.
 """
 
 import json
+import re
 from typing import Any, Dict, List, Optional, Union
 
 import ollama
@@ -130,8 +131,6 @@ class MicroThinkError(Exception):
         # Try to extract position from json_error
         pointer_line = ""
         if self.json_error:
-            import re
-
             # Match patterns like "column 18" or "position 17"
             col_match = re.search(r"column (\d+)", self.json_error, re.IGNORECASE)
             pos_match = re.search(r"position (\d+)", self.json_error, re.IGNORECASE)

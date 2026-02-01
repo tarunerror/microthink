@@ -96,3 +96,14 @@ class TestMicroThinkErrorEnhancements:
         # Should be truncated to ~200 chars + "..."
         assert len(error_str) < len(long_output)
         assert "..." in error_str
+
+    def test_error_shows_pointer_at_position(self):
+        """Error shows ^ pointer at error position."""
+        error = MicroThinkError(
+            message="JSON parsing failed",
+            last_output='{"name": "Alice",}',
+            attempts=3,
+            json_error="Expecting property name: line 1 column 18",
+        )
+        error_str = str(error)
+        assert "^" in error_str
