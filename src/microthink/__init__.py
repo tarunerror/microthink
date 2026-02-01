@@ -23,6 +23,7 @@ Example:
 
 from microthink.async_client import AsyncMicroThinkClient
 from microthink.batch import BatchProcessor, BatchResult
+from microthink.callbacks import Callbacks
 from microthink.client import MicroThinkClient, MicroThinkError
 from microthink.core.prompts import (
     PersonaError,
@@ -39,6 +40,7 @@ __all__ = [
     "AsyncMicroThinkClient",
     "BatchProcessor",
     "BatchResult",
+    "Callbacks",
     "MicroThinkClient",
     "MicroThinkError",
     "PersonaError",

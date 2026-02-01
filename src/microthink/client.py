@@ -8,10 +8,12 @@ structured outputs, and handle self-correction for small language models.
 
 import json
 import re
+import time
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 import ollama
 
+from microthink.callbacks import Callbacks
 from microthink.core.cache import ResponseCache, make_cache_key
 from microthink.core.parser import (
     clean_json_text,
@@ -221,6 +223,7 @@ class MicroThinkClient:
         cache_ttl: float = 3600.0,
         cache_max_size: int = 1000,
         logger: str = "rich",
+        callbacks: Optional[Callbacks] = None,
     ) -> None:
         """
         Initialize the MicroThink client.
@@ -234,6 +237,7 @@ class MicroThinkClient:
             cache_max_size: Maximum cache entries (default: 1000).
             logger: Logging mode - 'rich' for Rich console output (default),
                    'standard' for Python standard logging.
+            callbacks: Optional Callbacks instance for lifecycle hooks.
 
         Raises:
             ValueError: If the model name is empty.
@@ -244,6 +248,7 @@ class MicroThinkClient:
         self.model = model
         self.host = host
         self.timeout = timeout
+        self.callbacks = callbacks or Callbacks()
 
         # Initialize logging mode
         self._use_rich_logging = logger != "standard"
@@ -361,6 +366,12 @@ class MicroThinkClient:
                 f"Invalid behavior '{behavior}'. Available: {self.available_behaviors}"
             )
 
+        # Track timing for callbacks
+        start_time = time.time()
+
+        # Invoke on_request_start callback
+        self.callbacks.invoke_request_start(prompt, behavior)
+
         # Check cache first
         cache_key = None
         if self._cache is not None and not web_search:
@@ -373,8 +384,13 @@ class MicroThinkClient:
             )
             cached = self._cache.get(cache_key)
             if cached is not None:
+                # Invoke cache hit callback
+                self.callbacks.invoke_cache_hit(cache_key)
                 if debug:
                     self._log_info("Cache hit - returning cached response")
+                # Calculate duration and invoke request end callback
+                duration_ms = (time.time() - start_time) * 1000
+                self.callbacks.invoke_request_end(str(cached), duration_ms)
                 return cached
 
         # Build the system prompt with dynamic injection
@@ -438,6 +454,9 @@ class MicroThinkClient:
         if not expect_json:
             if self._cache is not None and cache_key is not None:
                 self._cache.set(cache_key, answer_content)
+            # Calculate duration and invoke request end callback
+            duration_ms = (time.time() - start_time) * 1000
+            self.callbacks.invoke_request_end(answer_content, duration_ms)
             return answer_content
 
         # JSON Reflexion Loop
@@ -458,11 +477,17 @@ class MicroThinkClient:
 
                 if self._cache is not None and cache_key is not None:
                     self._cache.set(cache_key, result)
+                # Calculate duration and invoke request end callback
+                duration_ms = (time.time() - start_time) * 1000
+                self.callbacks.invoke_request_end(str(result), duration_ms)
                 return result
 
             except json.JSONDecodeError as e:
                 retries += 1
                 last_error = str(e)
+
+                # Invoke retry callback
+                self.callbacks.invoke_retry(retries, last_error)
 
                 if debug:
                     log_retry(retries, self.MAX_RETRIES, last_error)
