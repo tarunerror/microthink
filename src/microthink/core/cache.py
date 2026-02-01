@@ -19,21 +19,12 @@ def make_cache_key(
     expect_json: bool,
     web_search: bool,
 ) -> str:
-    """
-    Generate a deterministic cache key from request parameters.
-
-    Args:
-        model: The model name.
-        behavior: The persona behavior.
-        prompt: The user prompt.
-        expect_json: Whether JSON output is expected.
-        web_search: Whether web search is enabled.
-
-    Returns:
-        A hex digest string suitable as a cache key.
-    """
-    key_parts = f"{model}|{behavior}|{prompt}|{expect_json}|{web_search}"
-    return hashlib.sha256(key_parts.encode()).hexdigest()
+    """Generate a deterministic cache key from request parameters."""
+    h = hashlib.sha256()
+    for part in [model, behavior, prompt, str(expect_json), str(web_search)]:
+        h.update(part.encode())
+        h.update(b"\x00")  # Null byte separator prevents collisions
+    return h.hexdigest()
 
 
 class ResponseCache:

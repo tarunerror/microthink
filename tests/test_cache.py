@@ -3,6 +3,7 @@
 import time
 
 import pytest
+
 from microthink.core.cache import ResponseCache, make_cache_key
 
 
@@ -63,7 +64,26 @@ class TestResponseCache:
         """Cache with ttl=0 acts as disabled."""
         cache = ResponseCache(max_size=100, ttl=0)
         cache.set("key1", "value1")
-        assert cache.get("key1") is None  # Immediately expired
+        assert cache.get("key1") is None  # Never stored when TTL disabled
+
+    def test_cache_lru_access_prevents_eviction(self):
+        """Accessing an entry prevents its eviction."""
+        cache = ResponseCache(max_size=2, ttl=60)
+        cache.set("key1", "value1")
+        cache.set("key2", "value2")
+        cache.get("key1")  # Access key1, making it most recent
+        cache.set("key3", "value3")  # Should evict key2, not key1
+        assert cache.get("key1") == "value1"  # key1 should survive
+        assert cache.get("key2") is None  # key2 should be evicted
+
+    def test_cache_update_resets_timestamp(self):
+        """Setting same key twice updates value and resets TTL."""
+        cache = ResponseCache(max_size=100, ttl=0.2)
+        cache.set("key1", "value1")
+        time.sleep(0.1)
+        cache.set("key1", "value2")  # Should reset TTL
+        time.sleep(0.15)  # Total 0.25s since first set, but 0.15s since update
+        assert cache.get("key1") == "value2"  # Should still be valid
 
 
 class TestCacheKeyGeneration:
