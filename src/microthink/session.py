@@ -6,19 +6,10 @@ persistence, and automatic history trimming.
 """
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from microthink.client import MicroThinkClient
-
-
-@dataclass
-class Message:
-    """A single message in a conversation."""
-
-    role: str  # "user", "assistant", or "system"
-    content: str
 
 
 class Session:
@@ -143,7 +134,7 @@ class Session:
             "behavior": self.behavior,
             "max_history": self.max_history,
         }
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
     @classmethod
@@ -158,7 +149,7 @@ class Session:
         Returns:
             A restored Session instance.
         """
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         session = cls(

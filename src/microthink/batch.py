@@ -86,10 +86,12 @@ class BatchProcessor:
             List of BatchResult objects in original order.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent)
-        results: List[BatchResult] = [None] * len(prompts)  # type: ignore
-        completed = [0]
+        results: List[Optional[BatchResult]] = [None] * len(prompts)
+        completed_count = 0
+        counter_lock = asyncio.Lock()
 
         async def process_one(index: int, prompt: str) -> None:
+            nonlocal completed_count
             async with semaphore:
                 try:
                     result = await self.client.generate(
@@ -113,9 +115,11 @@ class BatchProcessor:
                         index=index,
                     )
                 finally:
-                    completed[0] += 1
+                    async with counter_lock:
+                        completed_count += 1
+                        current_count = completed_count
                     if on_progress:
-                        on_progress(completed[0], len(prompts))
+                        on_progress(current_count, len(prompts))
 
         # Create tasks for all prompts
         tasks = [
@@ -124,9 +128,31 @@ class BatchProcessor:
         ]
 
         # Wait for all to complete
-        await asyncio.gather(*tasks, return_exceptions=continue_on_error)
+        gather_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        return results
+        # Check for any unhandled exceptions from gather
+        if not continue_on_error:
+            for i, gather_result in enumerate(gather_results):
+                if isinstance(gather_result, Exception):
+                    raise gather_result
+
+        # Handle any remaining None results (shouldn't happen but defensive)
+        final_results: List[BatchResult] = []
+        for i, r in enumerate(results):
+            if r is None:
+                # This could happen if an exception was raised and not caught
+                final_results.append(
+                    BatchResult(
+                        prompt=prompts[i],
+                        result=None,
+                        error="Task did not complete",
+                        index=i,
+                    )
+                )
+            else:
+                final_results.append(r)
+
+        return final_results
 
     async def process_with_schema(
         self,
@@ -150,10 +176,12 @@ class BatchProcessor:
             List of BatchResult objects.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent)
-        results: List[BatchResult] = [None] * len(prompts)  # type: ignore
-        completed = [0]
+        results: List[Optional[BatchResult]] = [None] * len(prompts)
+        completed_count = 0
+        counter_lock = asyncio.Lock()
 
         async def process_one(index: int, prompt: str) -> None:
+            nonlocal completed_count
             async with semaphore:
                 try:
                     result = await self.client.generate_with_schema(
@@ -177,13 +205,38 @@ class BatchProcessor:
                         index=index,
                     )
                 finally:
-                    completed[0] += 1
+                    async with counter_lock:
+                        completed_count += 1
+                        current_count = completed_count
                     if on_progress:
-                        on_progress(completed[0], len(prompts))
+                        on_progress(current_count, len(prompts))
 
         tasks = [
             asyncio.create_task(process_one(i, prompt))
             for i, prompt in enumerate(prompts)
         ]
-        await asyncio.gather(*tasks, return_exceptions=continue_on_error)
-        return results
+
+        gather_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Check for any unhandled exceptions from gather
+        if not continue_on_error:
+            for i, gather_result in enumerate(gather_results):
+                if isinstance(gather_result, Exception):
+                    raise gather_result
+
+        # Handle any remaining None results
+        final_results: List[BatchResult] = []
+        for i, r in enumerate(results):
+            if r is None:
+                final_results.append(
+                    BatchResult(
+                        prompt=prompts[i],
+                        result=None,
+                        error="Task did not complete",
+                        index=i,
+                    )
+                )
+            else:
+                final_results.append(r)
+
+        return final_results

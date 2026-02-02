@@ -6,6 +6,7 @@ questions about current events, real-time data, and topics
 beyond the model's training data.
 """
 
+import logging
 from typing import Dict, List, Optional
 
 try:
@@ -18,6 +19,8 @@ except ImportError:
             "Web search requires either 'ddgs' or 'duckduckgo-search' package. "
             "Install with: pip install ddgs"
         )
+
+logger = logging.getLogger(__name__)
 
 
 def search_web(query: str, max_results: int = 3) -> List[Dict[str, str]]:
@@ -53,11 +56,17 @@ def search_web(query: str, max_results: int = 3) -> List[Dict[str, str]]:
             ]
     except KeyboardInterrupt:
         raise  # Don't swallow Ctrl+C
+    except ConnectionError as e:
+        logger.warning(f"Web search connection error: {e}")
+        return []
+    except TimeoutError as e:
+        logger.warning(f"Web search timeout: {e}")
+        return []
     except Exception as e:
-        # Log the error for debugging while gracefully degrading
-        import logging
-
-        logging.warning(f"Web search failed: {e}")
+        # Log unexpected errors with traceback for debugging
+        logger.warning(
+            f"Web search failed with unexpected error: {type(e).__name__}: {e}"
+        )
         return []
 
 

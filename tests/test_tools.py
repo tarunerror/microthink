@@ -1,8 +1,43 @@
 """Tests for tool calling."""
 
+import ast
+import operator
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+def safe_math_eval(expression: str) -> float:
+    """
+    Safely evaluate a simple math expression.
+
+    Only supports basic arithmetic operations (+, -, *, /, **).
+    """
+    # Define allowed operators
+    operators = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+    }
+
+    def _eval(node):
+        if isinstance(node, ast.Constant):
+            return node.value
+        elif isinstance(node, ast.BinOp):
+            left = _eval(node.left)
+            right = _eval(node.right)
+            return operators[type(node.op)](left, right)
+        elif isinstance(node, ast.UnaryOp):
+            operand = _eval(node.operand)
+            return operators[type(node.op)](operand)
+        else:
+            raise ValueError(f"Unsupported expression: {ast.dump(node)}")
+
+    tree = ast.parse(expression, mode="eval")
+    return _eval(tree.body)
 
 
 class TestToolRegistry:
@@ -37,7 +72,7 @@ class TestToolRegistry:
         @registry.register
         def calculate(expression: str) -> float:
             """Evaluate a math expression."""
-            return eval(expression)
+            return safe_math_eval(expression)
 
         tool_info = registry.tools["calculate"]
         assert tool_info.name == "calculate"
@@ -101,9 +136,8 @@ class TestToolIntegration:
 
     def test_client_accepts_tools_parameter(self):
         """Client generate() accepts tools parameter."""
-        from microthink.tools.registry import ToolRegistry
-
         from microthink import MicroThinkClient
+        from microthink.tools.registry import ToolRegistry
 
         registry = ToolRegistry()
 

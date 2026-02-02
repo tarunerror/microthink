@@ -67,6 +67,10 @@ class ResponseCache:
         Returns:
             The cached value, or None if not found or expired.
         """
+        # If TTL is 0, caching is disabled - don't record stats
+        if self.ttl <= 0:
+            return None
+
         with self._lock:
             if key not in self._cache:
                 self._misses += 1

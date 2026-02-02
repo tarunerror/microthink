@@ -5,6 +5,7 @@ Provides YAML-based configuration with file discovery
 and sensible defaults.
 """
 
+import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -42,7 +43,7 @@ class Config:
 
     # Cache settings
     cache: bool = False
-    cache_ttl: int = 3600
+    cache_ttl: float = 3600.0
     cache_max_size: int = 1000
 
     # Behavior settings
@@ -103,7 +104,13 @@ def load_config(
         if config_path.exists():
             try:
                 return Config.from_file(config_path)
-            except Exception:
+            except ImportError:
+                # PyYAML not installed - skip config files
+                logging.debug(f"Skipping {config_path}: PyYAML not installed")
+                continue
+            except Exception as e:
+                # Log the error instead of silently swallowing
+                logging.warning(f"Failed to load config from {config_path}: {e}")
                 continue
 
     return Config()

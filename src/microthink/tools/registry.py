@@ -114,7 +114,8 @@ class ToolRegistry:
         lines = ["Available tools:"]
         for name, info in self.tools.items():
             params_str = ", ".join(
-                f"{p}: {info['type']}" for p, info in info.parameters.items()
+                f"{p}: {param_info['type']}"
+                for p, param_info in info.parameters.items()
             )
             lines.append(f"- {name}({params_str}): {info.description}")
 

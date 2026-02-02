@@ -21,6 +21,7 @@ from microthink.core.prompts import (
     register_persona as _register_persona,
 )
 from microthink.core.schema import SchemaValidationError, validate_schema
+from microthink.tools.search import extract_facts_from_results, search_web
 
 
 class AsyncMicroThinkClient:
@@ -120,6 +121,7 @@ class AsyncMicroThinkClient:
         expect_json: bool = False,
         debug: bool = False,
         brief: bool = False,
+        web_search: bool = False,
     ) -> Union[str, Dict[str, Any], List[Any]]:
         if behavior not in SYSTEM_PERSONAS:
             raise ValueError(
@@ -127,16 +129,31 @@ class AsyncMicroThinkClient:
             )
 
         cache_key = None
-        if self._cache is not None:
-            cache_key = make_cache_key(self.model, behavior, prompt, expect_json, False)
+        if self._cache is not None and not web_search:
+            cache_key = make_cache_key(
+                self.model, behavior, prompt, expect_json, web_search
+            )
             cached = self._cache.get(cache_key)
             if cached is not None:
                 return cached
 
         system_prompt = build_system_prompt(behavior, expect_json, brief)
+
+        # Web search: fetch results, extract facts, inject into prompt
+        enhanced_prompt = prompt
+        if web_search:
+            search_results = search_web(prompt, max_results=5)
+            if search_results:
+                extracted_facts = extract_facts_from_results(search_results, prompt)
+                if extracted_facts:
+                    enhanced_prompt = (
+                        f"Current information:\n{extracted_facts}\n\n"
+                        f"Based on the information above, answer: {prompt}"
+                    )
+
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": enhanced_prompt},
         ]
 
         response = await self._chat(messages)
@@ -208,11 +225,13 @@ class AsyncMicroThinkClient:
             raise MicroThinkError(
                 f"Expected dict but got {type(result).__name__}",
                 last_output=str(result),
+                attempts=1,
             )
         if isinstance(schema, list) and not isinstance(result, list):
             raise MicroThinkError(
                 f"Expected list but got {type(result).__name__}",
                 last_output=str(result),
+                attempts=1,
             )
         return result
 

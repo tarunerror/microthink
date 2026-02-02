@@ -6,6 +6,8 @@ that guide small LLMs to produce better outputs through Chain-of-Thought
 reasoning and structured formatting.
 """
 
+import threading
+
 # The Chain-of-Thought instruction that ensures structured reasoning
 COT_INSTRUCTION = """
 [IMPORTANT FORMAT INSTRUCTIONS]
@@ -81,6 +83,9 @@ SYSTEM_PERSONAS = {
 # Track which personas are built-in (cannot be removed)
 _BUILTIN_PERSONAS = frozenset(SYSTEM_PERSONAS.keys())
 
+# Lock for thread-safe access to SYSTEM_PERSONAS
+_personas_lock = threading.Lock()
+
 
 class PersonaError(Exception):
     """Raised when persona operations fail."""
@@ -131,7 +136,8 @@ def register_persona(
             f"Cannot override built-in persona '{name}'. "
             f"Use allow_override=True to override."
         )
-    SYSTEM_PERSONAS[name] = prompt.strip()
+    with _personas_lock:
+        SYSTEM_PERSONAS[name] = prompt.strip()
 
 
 def get_persona(name: str) -> str:
@@ -156,10 +162,11 @@ def get_persona(name: str) -> str:
         >>> "Python programmer" in prompt
         True
     """
-    if name not in SYSTEM_PERSONAS:
-        available = ", ".join(sorted(SYSTEM_PERSONAS.keys()))
-        raise PersonaError(f"Unknown persona '{name}'. Available: {available}")
-    return SYSTEM_PERSONAS[name]
+    with _personas_lock:
+        if name not in SYSTEM_PERSONAS:
+            available = ", ".join(sorted(SYSTEM_PERSONAS.keys()))
+            raise PersonaError(f"Unknown persona '{name}'. Available: {available}")
+        return SYSTEM_PERSONAS[name]
 
 
 def unregister_persona(name: str) -> None:
@@ -184,9 +191,10 @@ def unregister_persona(name: str) -> None:
     """
     if name in _BUILTIN_PERSONAS:
         raise PersonaError(f"Cannot unregister built-in persona '{name}'")
-    if name not in SYSTEM_PERSONAS:
-        raise PersonaError(f"Unknown persona '{name}'")
-    del SYSTEM_PERSONAS[name]
+    with _personas_lock:
+        if name not in SYSTEM_PERSONAS:
+            raise PersonaError(f"Unknown persona '{name}'")
+        del SYSTEM_PERSONAS[name]
 
 
 def build_system_prompt(
@@ -210,8 +218,9 @@ def build_system_prompt(
         >>> "valid JSON" in prompt
         True
     """
-    # Start with the persona identity
-    system_text = SYSTEM_PERSONAS[behavior]
+    # Start with the persona identity (thread-safe access)
+    with _personas_lock:
+        system_text = SYSTEM_PERSONAS[behavior]
 
     # Add CoT instruction (brief or detailed)
     if brief:

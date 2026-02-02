@@ -661,6 +661,7 @@ class MicroThinkClient:
         prompt: str,
         behavior: str = "general",
         brief: bool = False,
+        web_search: bool = False,
     ) -> Iterator[str]:
         """
         Stream a response token by token.
@@ -671,6 +672,7 @@ class MicroThinkClient:
             prompt: The user's input prompt.
             behavior: The persona to use.
             brief: If True, output just the result.
+            web_search: If True, search the web and include results in context.
 
         Yields:
             String chunks as they are generated (answer content only).
@@ -685,9 +687,22 @@ class MicroThinkClient:
             )
 
         system_prompt = build_system_prompt(behavior, expect_json=False, brief=brief)
+
+        # Web search: fetch results, extract facts, inject into prompt
+        enhanced_prompt = prompt
+        if web_search:
+            search_results = search_web(prompt, max_results=5)
+            if search_results:
+                extracted_facts = extract_facts_from_results(search_results, prompt)
+                if extracted_facts:
+                    enhanced_prompt = (
+                        f"Current information:\n{extracted_facts}\n\n"
+                        f"Based on the information above, answer: {prompt}"
+                    )
+
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": enhanced_prompt},
         ]
 
         response = self._client.chat(
@@ -759,6 +774,7 @@ class MicroThinkClient:
         brief: bool = False,
         on_thinking: Optional[Callable[[str], None]] = None,
         on_chunk: Optional[Callable[[str], None]] = None,
+        web_search: bool = False,
     ) -> str:
         """
         Stream a response with callbacks for thinking and answer chunks.
@@ -772,6 +788,7 @@ class MicroThinkClient:
             brief: If True, output just the result.
             on_thinking: Callback called with complete thinking content.
             on_chunk: Callback called with each answer chunk as it arrives.
+            web_search: If True, search the web and include results in context.
 
         Returns:
             The complete answer content.
@@ -782,9 +799,22 @@ class MicroThinkClient:
             )
 
         system_prompt = build_system_prompt(behavior, expect_json=False, brief=brief)
+
+        # Web search: fetch results, extract facts, inject into prompt
+        enhanced_prompt = prompt
+        if web_search:
+            search_results = search_web(prompt, max_results=5)
+            if search_results:
+                extracted_facts = extract_facts_from_results(search_results, prompt)
+                if extracted_facts:
+                    enhanced_prompt = (
+                        f"Current information:\n{extracted_facts}\n\n"
+                        f"Based on the information above, answer: {prompt}"
+                    )
+
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": enhanced_prompt},
         ]
 
         response = self._client.chat(
@@ -798,7 +828,6 @@ class MicroThinkClient:
         thinking_content = ""
         answer_content = ""
         thinking_emitted = False
-        in_answer = False
 
         thinking_start = "<thinking>"
         thinking_end = "</thinking>"
@@ -843,8 +872,6 @@ class MicroThinkClient:
                     answer_content = current_answer
 
         # Final parsing to ensure we got everything
-        from microthink.core.parser import parse_response
-
         parsed = parse_response(full_response)
         final_answer = parsed.get("answer", "")
 
