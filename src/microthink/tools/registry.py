@@ -143,7 +143,10 @@ def parse_tool_call(content: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        return json.loads(match.group(1))
+        data = json.loads(match.group(1))
+        if isinstance(data, dict):
+            return data
+        return None
     except json.JSONDecodeError:
         return None
 
@@ -159,11 +162,13 @@ def parse_all_tool_calls(content: str) -> List[Dict[str, Any]]:
         List of dicts with 'name' and 'args'.
     """
     matches = re.findall(r"<tool_call>(.*?)</tool_call>", content, re.DOTALL)
-    results = []
+    results: List[Dict[str, Any]] = []
 
     for match in matches:
         try:
-            results.append(json.loads(match))
+            data = json.loads(match)
+            if isinstance(data, dict):
+                results.append(data)
         except json.JSONDecodeError:
             continue
 

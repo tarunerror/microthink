@@ -9,7 +9,7 @@ structured outputs, and handle self-correction for small language models.
 import json
 import re
 import time
-from typing import Any, Callable, Dict, Iterator, List, Optional, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union, cast
 
 import ollama
 
@@ -417,7 +417,7 @@ class MicroThinkClient:
                 self.callbacks.invoke_request_end(str(cached), duration_ms)
                 # Record successful request in metrics
                 self.metrics.record_request(success=True, latency_ms=duration_ms)
-                return cached
+                return cast(Union[str, Dict[str, Any], List[Any]], cached)
             else:
                 # Record cache miss in metrics (cache enabled but not found)
                 self.metrics.record_cache_miss()
@@ -518,7 +518,7 @@ class MicroThinkClient:
                 self.callbacks.invoke_request_end(str(result), duration_ms)
                 # Record successful request in metrics
                 self.metrics.record_request(success=True, latency_ms=duration_ms)
-                return result
+                return cast(Union[Dict[str, Any], List[Any]], result)
 
             except json.JSONDecodeError as e:
                 retries += 1
@@ -654,7 +654,7 @@ class MicroThinkClient:
                 attempts=self.MAX_RETRIES,
             )
 
-        return result
+        return cast(Union[Dict[str, Any], List[Any]], result)
 
     def stream(
         self,

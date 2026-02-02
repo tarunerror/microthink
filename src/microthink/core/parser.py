@@ -11,7 +11,12 @@ Layer 4 (generate loop): Handles actual syntax errors via retry
 """
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict
+
+
+class ParsedResponse(TypedDict):
+    thinking: Optional[str]
+    answer: str
 
 
 def extract_tag_content(text: str, tag: str) -> Optional[str]:
@@ -166,7 +171,7 @@ def clean_json_text(text: str) -> str:
     return text[start_index:end_index]
 
 
-def parse_response(text: str) -> Dict[str, Optional[str]]:
+def parse_response(text: str) -> ParsedResponse:
     """
     Parse a complete LLM response into its components.
 
@@ -174,8 +179,8 @@ def parse_response(text: str) -> Dict[str, Optional[str]]:
         text: The raw LLM response.
 
     Returns:
-        A dictionary with 'thinking' and 'answer' keys.
-        Values may be None if the respective tag was not found.
+        A dictionary with 'thinking' (Optional[str]) and 'answer' (str).
+        Thinking may be None if not found, but answer is always a string.
 
     Example:
         >>> result = parse_response("<thinking>Step 1</thinking><answer>42</answer>")

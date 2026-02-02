@@ -6,7 +6,7 @@ Uses httpx for async HTTP communication with Ollama.
 """
 
 import json
-from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, List, Optional, Union, cast
 
 import httpx
 
@@ -65,7 +65,7 @@ class AsyncMicroThinkClient:
         self._http_client = httpx.AsyncClient(timeout=self.timeout)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         if self._http_client:
             await self._http_client.aclose()
             self._http_client = None
@@ -112,7 +112,7 @@ class AsyncMicroThinkClient:
 
         response = await self._http_client.post(f"{self.host}/api/chat", json=payload)
         response.raise_for_status()
-        return response.json()
+        return cast(Dict[str, Any], response.json())
 
     async def generate(
         self,
@@ -135,7 +135,7 @@ class AsyncMicroThinkClient:
             )
             cached = self._cache.get(cache_key)
             if cached is not None:
-                return cached
+                return cast(Union[str, Dict[str, Any], List[Any]], cached)
 
         system_prompt = build_system_prompt(behavior, expect_json, brief)
 
@@ -176,7 +176,7 @@ class AsyncMicroThinkClient:
                 result = json.loads(cleaned)
                 if self._cache is not None and cache_key:
                     self._cache.set(cache_key, result)
-                return result
+                return cast(Union[Dict[str, Any], List[Any]], result)
             except json.JSONDecodeError as e:
                 retries += 1
                 last_error = str(e)
@@ -233,7 +233,7 @@ class AsyncMicroThinkClient:
                 last_output=str(result),
                 attempts=1,
             )
-        return result
+        return cast(Union[Dict[str, Any], List[Any]], result)
 
     async def stream(
         self,

@@ -178,7 +178,10 @@ def main() -> None:
 
         if i < len(demos):
             print()
-            input("Press Enter to continue to next demo...")
+            try:
+                input("Press Enter to continue to next demo...")
+            except (EOFError, OSError):
+                print("Non-interactive mode detected. Continuing...")
             print()
 
     print("=" * 60)

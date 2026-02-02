@@ -13,7 +13,7 @@ try:
     from ddgs import DDGS
 except ImportError:
     try:
-        from duckduckgo_search import DDGS
+        from duckduckgo_search import DDGS  # type: ignore
     except ImportError:
         raise ImportError(
             "Web search requires either 'ddgs' or 'duckduckgo-search' package. "
