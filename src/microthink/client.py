@@ -572,6 +572,14 @@ class MicroThinkClient:
                     log_thinking(parsed["thinking"])
                     log_answer(answer_content, is_json=True)
 
+        # Defensive: should never reach here as loop always returns or raises
+        raise MicroThinkError(
+            "Unexpected: JSON retry loop completed without returning or raising",
+            last_output=answer_content,
+            attempts=retries,
+            json_error=last_error,
+        )
+
     def generate_with_schema(
         self,
         prompt: str,
@@ -743,6 +751,116 @@ class MicroThinkClient:
                 buffer = buffer[: -len(answer_end_tag)]
             if buffer:
                 yield buffer
+
+    def stream_with_callback(
+        self,
+        prompt: str,
+        behavior: str = "general",
+        brief: bool = False,
+        on_thinking: Optional[Callable[[str], None]] = None,
+        on_chunk: Optional[Callable[[str], None]] = None,
+    ) -> str:
+        """
+        Stream a response with callbacks for thinking and answer chunks.
+
+        This method provides real-time streaming of the answer content while
+        capturing the thinking block to display via callback.
+
+        Args:
+            prompt: The user's input prompt.
+            behavior: The persona to use.
+            brief: If True, output just the result.
+            on_thinking: Callback called with complete thinking content.
+            on_chunk: Callback called with each answer chunk as it arrives.
+
+        Returns:
+            The complete answer content.
+        """
+        if behavior not in SYSTEM_PERSONAS:
+            raise ValueError(
+                f"Invalid behavior '{behavior}'. Available: {self.available_behaviors}"
+            )
+
+        system_prompt = build_system_prompt(behavior, expect_json=False, brief=brief)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
+        response = self._client.chat(
+            model=self.model,
+            messages=messages,
+            stream=True,
+        )
+
+        # Accumulate full response for parsing
+        full_response = ""
+        thinking_content = ""
+        answer_content = ""
+        thinking_emitted = False
+        in_answer = False
+
+        thinking_start = "<thinking>"
+        thinking_end = "</thinking>"
+        answer_start = "<answer>"
+        answer_end = "</answer>"
+
+        for chunk in response:
+            if "message" not in chunk or "content" not in chunk["message"]:
+                continue
+
+            content = chunk["message"]["content"]
+            full_response += content
+
+            # Check if we have complete thinking content to emit
+            if not thinking_emitted and thinking_end in full_response:
+                # Extract thinking content
+                start_idx = full_response.find(thinking_start)
+                end_idx = full_response.find(thinking_end)
+                if start_idx != -1 and end_idx != -1:
+                    thinking_content = full_response[
+                        start_idx + len(thinking_start) : end_idx
+                    ].strip()
+                    if on_thinking and thinking_content:
+                        on_thinking(thinking_content)
+                    thinking_emitted = True
+
+            # Check if we're in the answer section and can stream
+            if answer_start in full_response:
+                answer_start_idx = full_response.find(answer_start)
+                current_answer = full_response[answer_start_idx + len(answer_start) :]
+
+                # Remove end tag if present
+                if answer_end in current_answer:
+                    end_idx = current_answer.find(answer_end)
+                    current_answer = current_answer[:end_idx]
+
+                # Stream new content
+                if len(current_answer) > len(answer_content):
+                    new_content = current_answer[len(answer_content) :]
+                    if on_chunk and new_content:
+                        on_chunk(new_content)
+                    answer_content = current_answer
+
+        # Final parsing to ensure we got everything
+        from microthink.core.parser import parse_response
+
+        parsed = parse_response(full_response)
+        final_answer = parsed.get("answer", "")
+
+        # Emit any remaining content not yet streamed
+        if len(final_answer) > len(answer_content):
+            remaining = final_answer[len(answer_content) :]
+            if on_chunk and remaining:
+                on_chunk(remaining)
+
+        # If thinking wasn't emitted yet (no tags found), try to emit it now
+        if not thinking_emitted and on_thinking:
+            thinking = parsed.get("thinking")
+            if thinking and thinking.strip():
+                on_thinking(thinking.strip())
+
+        return final_answer
 
     def _stream_generate(
         self,

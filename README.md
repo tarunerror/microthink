@@ -20,7 +20,7 @@ pip install -e .
 Or install dependencies directly:
 
 ```bash
-pip install ollama rich duckduckgo-search
+pip install ollama rich ddgs
 ```
 
 ## Requirements

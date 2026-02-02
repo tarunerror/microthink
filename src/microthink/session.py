@@ -6,12 +6,11 @@ persistence, and automatic history trimming.
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from microthink.client import MicroThinkClient
-from microthink.core.prompts import SYSTEM_PERSONAS, build_system_prompt
 
 
 @dataclass
@@ -81,39 +80,46 @@ class Session:
         Returns:
             The model's response.
         """
+        # Build conversation context from history
+        context_parts = []
+        for msg in self._history:
+            role = msg["role"]
+            content = msg["content"]
+            if role == "user":
+                context_parts.append(f"User: {content}")
+            elif role == "assistant":
+                context_parts.append(f"Assistant: {content}")
+
+        # Create enhanced prompt with history context
+        if context_parts:
+            context = "\n".join(context_parts)
+            enhanced_prompt = f"Previous conversation:\n{context}\n\nUser: {prompt}"
+        else:
+            enhanced_prompt = prompt
+
+        # Delegate to client's generate method (handles web_search, debug, JSON retries)
+        result = self.client.generate(
+            prompt=enhanced_prompt,
+            behavior=self.behavior,
+            expect_json=expect_json,
+            web_search=web_search,
+            debug=debug,
+        )
+
         # Add user message to history
         self._history.append({"role": "user", "content": prompt})
 
-        # Build messages with history
-        system_prompt = build_system_prompt(
-            self.behavior, expect_json=expect_json, brief=False
-        )
-        messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(self._history)
-
-        # Use client's internal method for generation
-        response = self.client._client.chat(
-            model=self.client.model,
-            messages=messages,
-        )
-
-        # Extract answer
-        from microthink.core.parser import extract_answer_safely
-
-        raw_content = response["message"]["content"]
-        answer = extract_answer_safely(raw_content)
-
         # Add assistant response to history
-        self._history.append({"role": "assistant", "content": answer})
+        if isinstance(result, str):
+            self._history.append({"role": "assistant", "content": result})
+        else:
+            # For JSON results, store as string representation
+            self._history.append({"role": "assistant", "content": json.dumps(result)})
 
         # Trim history if needed
         self._trim_history()
 
-        # Parse JSON if expected
-        if expect_json:
-            return json.loads(answer)
-
-        return answer
+        return result
 
     def _trim_history(self) -> None:
         """Trim history to max_history size."""

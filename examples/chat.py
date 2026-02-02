@@ -117,6 +117,32 @@ def detect_mode(prompt: str) -> tuple[str, bool, bool]:
     return "general", False, web_search
 
 
+def format_history_context(history: list[dict], current_prompt: str) -> str:
+    """
+    Format conversation history as context to prepend to the current prompt.
+
+    Args:
+        history: List of message dicts with 'role' and 'content' keys.
+        current_prompt: The current user prompt.
+
+    Returns:
+        Formatted prompt with history context.
+    """
+    if not history:
+        return current_prompt
+
+    # Build history context
+    history_lines = ["Previous conversation:"]
+    for msg in history:
+        role = "User" if msg["role"] == "user" else "Assistant"
+        history_lines.append(f"{role}: {msg['content']}")
+
+    history_lines.append("")
+    history_lines.append(f"Current question: {current_prompt}")
+
+    return "\n".join(history_lines)
+
+
 def main():
     print("=" * 50)
     print("MicroThink Chat (Auto-Detect Mode)")
@@ -125,6 +151,7 @@ def main():
     print("Commands:")
     print("  /debug    - Toggle debug mode (show thinking)")
     print("  /brief    - Toggle brief mode (just answer, no explanation)")
+    print("  /stream   - Toggle streaming mode (real-time token output)")
     print("  /web      - Toggle web search mode")
     print("  /auto     - Toggle auto-detect mode")
     print("  /json     - Toggle JSON mode (manual)")
@@ -132,6 +159,7 @@ def main():
     print("  /analyst  - Force analyst persona")
     print("  /reasoner - Force reasoner persona")
     print("  /general  - Force general persona")
+    print("  /clear    - Clear conversation history")
     print("  /quit     - Exit")
     print()
     print("Auto-detect is ON. Persona and web search chosen based on your query.")
@@ -141,9 +169,14 @@ def main():
     # Initialize client
     client = MicroThinkClient(model="llama3.2:3b")
 
+    # Conversation history tracking
+    conversation_history: list[dict] = []
+    MAX_HISTORY_SIZE = 20  # Keep last 20 messages (10 exchanges)
+
     # Settings
     debug = True
     brief = False  # Detailed answers by default
+    streaming = True  # Real-time token streaming by default
     auto_detect = True
     manual_json = False
     manual_web = False  # Manual web search toggle
@@ -191,6 +224,18 @@ def main():
                     prompt = remaining
                 else:
                     continue
+            elif command == "/stream":
+                streaming = not streaming
+                if streaming and debug:
+                    print(
+                        "Streaming: ON (note: streaming disabled when debug mode is ON)"
+                    )
+                else:
+                    print(f"Streaming: {'ON' if streaming else 'OFF'}")
+                if remaining:
+                    prompt = remaining
+                else:
+                    continue
             elif command == "/auto":
                 auto_detect = not auto_detect
                 print(f"Auto-detect: {'ON' if auto_detect else 'OFF'}")
@@ -216,6 +261,13 @@ def main():
                 manual_behavior = command[1:]
                 auto_detect = False  # Disable auto when manually selecting
                 print(f"Switched to: {manual_behavior} (auto-detect OFF)")
+                if remaining:
+                    prompt = remaining
+                else:
+                    continue
+            elif command == "/clear":
+                conversation_history.clear()
+                print("Conversation history cleared.")
                 if remaining:
                     prompt = remaining
                 else:
@@ -246,16 +298,59 @@ def main():
                 web_search = manual_web
 
             # Generate response
-            response = client.generate(
-                prompt=prompt,
-                behavior=behavior,
-                expect_json=expect_json,
-                debug=debug,
-                brief=brief,
-                web_search=web_search,
-            )
+            # Build prompt with conversation history context
+            prompt_with_history = format_history_context(conversation_history, prompt)
 
-            print(f"\nAssistant: {response}")
+            # Use streaming when enabled and supported (not JSON, not web search)
+            if streaming and not expect_json and not web_search:
+                # Track if we've printed the answer header
+                answer_header_printed = False
+
+                # Define callbacks for debug output
+                def on_thinking(thinking: str) -> None:
+                    if debug:
+                        from microthink.utils.logger import log_thinking
+
+                        log_thinking(thinking)
+
+                def on_chunk(chunk: str) -> None:
+                    nonlocal answer_header_printed
+                    # Print answer header before first chunk
+                    if not answer_header_printed:
+                        print("\nAssistant: ", end="", flush=True)
+                        answer_header_printed = True
+                    print(chunk, end="", flush=True)
+
+                # Stream with callbacks
+                response = client.stream_with_callback(
+                    prompt=prompt_with_history,
+                    behavior=behavior,
+                    brief=brief,
+                    on_thinking=on_thinking,
+                    on_chunk=on_chunk,
+                )
+
+                # Newline after streaming completes
+                print()
+            else:
+                # Use regular generate for JSON or web search
+                response = client.generate(
+                    prompt=prompt_with_history,
+                    behavior=behavior,
+                    expect_json=expect_json,
+                    debug=debug,
+                    brief=brief,
+                    web_search=web_search,
+                )
+                print(f"\nAssistant: {response}")
+
+            # Store conversation in history
+            conversation_history.append({"role": "user", "content": prompt})
+            conversation_history.append({"role": "assistant", "content": response})
+
+            # Trim history if it exceeds max size
+            if len(conversation_history) > MAX_HISTORY_SIZE:
+                conversation_history[:] = conversation_history[-MAX_HISTORY_SIZE:]
 
         except MicroThinkError as e:
             print(f"\nError: {e.message}")

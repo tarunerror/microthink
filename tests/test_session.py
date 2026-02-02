@@ -67,11 +67,17 @@ class TestSession:
             session.generate("First message")
             session.generate("Second message")
 
-            # Check last call included history
+            # Check last call included history in the prompt
             last_call = mock_client.chat.call_args
             messages = last_call[1]["messages"]
-            # Should have system + first user + first assistant + second user
-            assert len(messages) >= 4
+            # Find the user message content
+            user_message = next(
+                msg["content"] for msg in messages if msg["role"] == "user"
+            )
+            # History should be embedded in the prompt
+            assert "Previous conversation" in user_message
+            assert "First message" in user_message
+            assert "Second message" in user_message
 
     def test_session_max_history(self):
         """Session respects max_history limit."""

@@ -29,11 +29,11 @@ class ToolRegistry:
     Example:
         >>> registry = ToolRegistry()
         >>> @registry.register
-        ... def calculate(expression: str) -> float:
-        ...     '''Evaluate a math expression.'''
-        ...     return eval(expression)
-        >>> registry.execute("calculate", {"expression": "2+2"})
-        4
+        ... def greet(name: str) -> str:
+        ...     '''Generate a greeting message.'''
+        ...     return f"Hello, {name}!"
+        >>> registry.execute("greet", {"name": "World"})
+        'Hello, World!'
     """
 
     def __init__(self) -> None:
@@ -179,8 +179,8 @@ def tool(func: Callable) -> Callable:
 
     Example:
         >>> @tool
-        ... def calculate(expression: str) -> float:
-        ...     '''Evaluate a math expression.'''
-        ...     return eval(expression)
+        ... def greet(name: str) -> str:
+        ...     '''Generate a greeting message.'''
+        ...     return f"Hello, {name}!"
     """
     return _default_registry.register(func)

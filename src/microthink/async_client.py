@@ -180,6 +180,14 @@ class AsyncMicroThinkClient:
                 answer_content = parsed["answer"]
                 messages.append({"role": "assistant", "content": raw_content})
 
+        # Defensive: should never reach here as loop always returns or raises
+        raise MicroThinkError(
+            "Unexpected: JSON retry loop completed without returning or raising",
+            last_output=answer_content,
+            attempts=retries,
+            json_error=last_error,
+        )
+
     async def generate_with_schema(
         self,
         prompt: str,
